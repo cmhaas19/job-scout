@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { SearchForm, type SearchFormData } from "@/components/search-form";
 import {
   Search,
   Plus,
@@ -47,6 +47,10 @@ export default function SearchesPage() {
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Create/Edit modal state
+  const [showForm, setShowForm] = useState(false);
+  const [editingSearch, setEditingSearch] = useState<SearchFormData | null>(null);
 
   // Progress modal state
   const [runStatus, setRunStatus] = useState<RunStatus>("idle");
@@ -179,7 +183,7 @@ export default function SearchesPage() {
               <PlayCircle className="h-4 w-4 mr-2" />
               Run All
             </Button>
-            <Button size="sm" onClick={() => router.push("/setup/searches/new")}>
+            <Button size="sm" onClick={() => { setEditingSearch(null); setShowForm(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               New Search
             </Button>
@@ -210,7 +214,7 @@ export default function SearchesPage() {
               <p className="text-sm text-muted-foreground mt-1 mb-4">
                 Create your first search to start finding jobs
               </p>
-              <Button onClick={() => router.push("/setup/searches/new")}>
+              <Button onClick={() => { setEditingSearch(null); setShowForm(true); }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Search
               </Button>
@@ -287,7 +291,7 @@ export default function SearchesPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => router.push(`/setup/searches/${search.id}/edit`)}
+                          onClick={() => { setEditingSearch(search as SearchFormData); setShowForm(true); }}
                           title="Edit"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -317,6 +321,30 @@ export default function SearchesPage() {
           </div>
         </>
       )}
+
+      {/* Create/Edit modal */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onClose={() => setShowForm(false)}>
+          <DialogHeader>
+            <DialogTitle>
+              {editingSearch ? "Edit Search" : "New Search"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingSearch
+                ? "Update your search configuration"
+                : "Configure a new LinkedIn job search"}
+            </DialogDescription>
+          </DialogHeader>
+          <SearchForm
+            initialData={editingSearch}
+            onSave={() => {
+              setShowForm(false);
+              loadSearches();
+            }}
+            onCancel={() => setShowForm(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
