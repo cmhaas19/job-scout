@@ -4,10 +4,26 @@ import { runPipeline } from "@/lib/scraper/pipeline";
 
 export const maxDuration = 300;
 
-export async function POST(request: NextRequest) {
-  // Verify cron secret
+function isAuthorized(request: NextRequest): boolean {
+  // Vercel Cron sends the secret as Authorization: Bearer <CRON_SECRET>
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader === `Bearer ${process.env.CRON_SECRET}`) return true;
+
+  return false;
+}
+
+// Vercel Cron sends GET requests
+export async function GET(request: NextRequest) {
+  return handleCron(request);
+}
+
+// Also support POST for manual triggers
+export async function POST(request: NextRequest) {
+  return handleCron(request);
+}
+
+async function handleCron(request: NextRequest) {
+  if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

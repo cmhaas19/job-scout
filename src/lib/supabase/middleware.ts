@@ -36,12 +36,17 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Public routes
-  if (path === "/login" || path === "/register") {
+  if (path === "/login" || path === "/register" || path === "/forgot-password") {
     if (user) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);
     }
+    return supabaseResponse;
+  }
+
+  // Reset password — allow with or without session (user clicks email link)
+  if (path === "/reset-password") {
     return supabaseResponse;
   }
 
