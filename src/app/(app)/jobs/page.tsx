@@ -311,7 +311,7 @@ export default function JobsPage() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <LayoutDashboard className="h-6 w-6" />
-              Job Results
+              Jobs
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
               {total} job{total !== 1 ? "s" : ""} found

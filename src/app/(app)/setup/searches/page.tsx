@@ -13,13 +13,9 @@ import {
   Trash2,
   Play,
   PlayCircle,
-  MapPin,
-  Clock,
-  Briefcase,
   Loader2,
   CheckCircle2,
   XCircle,
-  X,
 } from "lucide-react";
 import {
   Dialog,
@@ -71,7 +67,6 @@ export default function SearchesPage() {
     loadSearches();
   }, [loadSearches]);
 
-  // Auto-scroll log to bottom
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [runLogs]);
@@ -93,7 +88,6 @@ export default function SearchesPage() {
   }
 
   async function handleRun(searchId?: string) {
-    // Reset and open modal
     setRunLogs([]);
     setRunStats(null);
     setRunError(null);
@@ -114,7 +108,6 @@ export default function SearchesPage() {
         return;
       }
 
-      // Read SSE stream
       const reader = res.body?.getReader();
       if (!reader) {
         setRunError("No response stream");
@@ -130,10 +123,8 @@ export default function SearchesPage() {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-
-        // Parse SSE lines
         const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+        buffer = lines.pop() || "";
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
@@ -149,16 +140,13 @@ export default function SearchesPage() {
                 setRunStatus("error");
               }
             } catch {
-              // ignore malformed events
+              // ignore
             }
           }
         }
       }
 
-      // If we exited the loop without a complete/error event
-      if (runStatus === "running") {
-        setRunStatus("completed");
-      }
+      if (runStatus === "running") setRunStatus("completed");
     } catch (err: any) {
       setRunError(err.message);
       setRunStatus("error");
@@ -171,128 +159,163 @@ export default function SearchesPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto h-full overflow-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold">Saved Searches</h1>
-          <p className="text-muted-foreground mt-1">
-            Configure your LinkedIn job searches
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => handleRun()}
-            disabled={runStatus === "running" || searches.filter((s) => s.is_active).length === 0}
-          >
-            <PlayCircle className="h-4 w-4 mr-2" />
-            Run All
-          </Button>
-          <Button onClick={() => router.push("/setup/searches/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Search
-          </Button>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="shrink-0 p-6 lg:p-8 pb-0">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold">Saved Searches</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {searches.length} search{searches.length !== 1 ? "es" : ""}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleRun()}
+              disabled={runStatus === "running" || searches.filter((s) => s.is_active).length === 0}
+            >
+              <PlayCircle className="h-4 w-4 mr-2" />
+              Run All
+            </Button>
+            <Button size="sm" onClick={() => router.push("/setup/searches/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Search
+            </Button>
+          </div>
         </div>
       </div>
 
-      {loading ? null : searches.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-            <p className="text-lg font-medium">No saved searches</p>
-            <p className="text-sm text-muted-foreground mt-1 mb-4">
-              Create your first search to start finding jobs
-            </p>
-            <Button onClick={() => router.push("/setup/searches/new")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Search
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {searches.map((search) => (
-            <Card key={search.id} className={!search.is_active ? "opacity-60" : ""}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold truncate">{search.name}</h3>
-                      {search.is_active ? (
-                        <Badge variant="strong" className="text-xs">Active</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">Paused</Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-2 truncate">
-                      <Search className="h-3 w-3 inline mr-1" />
-                      {search.keyword}
-                    </p>
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      {search.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {search.location}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {search.date_since_posted}
-                      </span>
-                      {search.remote_filter && (
-                        <Badge variant="secondary" className="text-xs">
-                          {search.remote_filter}
-                        </Badge>
-                      )}
-                      {search.job_type && (
-                        <Badge variant="secondary" className="text-xs">
-                          {search.job_type}
-                        </Badge>
-                      )}
-                      {search.experience_level?.length > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          <Briefcase className="h-3 w-3 mr-1" />
-                          {search.experience_level.join(", ")}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Switch
-                      checked={search.is_active}
-                      onCheckedChange={() => toggleActive(search)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRun(search.id)}
-                      disabled={runStatus === "running"}
-                      title="Run Now"
-                    >
-                      <Play className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        router.push(`/setup/searches/${search.id}/edit`)
-                      }
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setDeleteId(search.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Table area */}
+      {loading ? (
+        <div className="flex-1 px-6 lg:px-8">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-3 py-3 border-b border-border">
+              <div className="h-5 w-10 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+              <div className="h-4 flex-1 bg-muted animate-pulse rounded max-w-[200px]" />
+              <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+            </div>
           ))}
         </div>
+      ) : searches.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center p-6">
+          <Card className="w-full max-w-md">
+            <CardContent className="py-16 text-center">
+              <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+              <p className="text-lg font-medium">No saved searches</p>
+              <p className="text-sm text-muted-foreground mt-1 mb-4">
+                Create your first search to start finding jobs
+              </p>
+              <Button onClick={() => router.push("/setup/searches/new")}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Search
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 overflow-auto px-6 lg:px-8">
+            <table className="w-full min-w-[700px]">
+              <thead className="sticky top-0 bg-background z-10 border-b">
+                <tr>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[60px]">Active</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Keywords</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[160px]">Location</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[100px]">Posted</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[100px]">Work Type</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[100px]">Job Type</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[130px]">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {searches.map((search) => (
+                  <tr
+                    key={search.id}
+                    className={`hover:bg-muted/50 ${!search.is_active ? "opacity-50" : ""}`}
+                  >
+                    <td className="px-3 py-2.5">
+                      <Switch
+                        checked={search.is_active}
+                        onCheckedChange={() => toggleActive(search)}
+                      />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-sm font-medium">{search.name}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-sm text-muted-foreground line-clamp-1">{search.keyword}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-sm text-muted-foreground line-clamp-1">
+                        {search.location || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {search.date_since_posted}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-xs text-muted-foreground">
+                        {search.remote_filter || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-xs text-muted-foreground">
+                        {search.job_type || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleRun(search.id)}
+                          disabled={runStatus === "running"}
+                          title="Run Now"
+                        >
+                          <Play className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => router.push(`/setup/searches/${search.id}/edit`)}
+                          title="Edit"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setDeleteId(search.id)}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Fixed footer */}
+          <div className="shrink-0 border-t bg-background px-6 lg:px-8 py-3">
+            <span className="text-sm text-muted-foreground">
+              {searches.length} search{searches.length !== 1 ? "es" : ""} ({searches.filter((s) => s.is_active).length} active)
+            </span>
+          </div>
+        </>
       )}
 
       {/* Delete confirmation */}
@@ -341,7 +364,6 @@ export default function SearchesPage() {
             </div>
           </DialogHeader>
 
-          {/* Stats summary */}
           {runStats && (
             <div className="grid grid-cols-4 gap-3 mt-2">
               <div className="rounded-lg bg-muted p-3 text-center">
@@ -374,7 +396,6 @@ export default function SearchesPage() {
             </div>
           )}
 
-          {/* Log output */}
           <div className="bg-zinc-950 rounded-lg p-4 mt-2 max-h-[400px] overflow-y-auto font-mono text-xs">
             {runLogs.length === 0 && runStatus === "running" && (
               <span className="text-zinc-500">Waiting for pipeline to start...</span>
@@ -397,7 +418,6 @@ export default function SearchesPage() {
             <div ref={logEndRef} />
           </div>
 
-          {/* Close button */}
           {runStatus !== "running" && (
             <div className="flex justify-end mt-2">
               {runStatus === "completed" ? (
