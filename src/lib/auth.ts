@@ -58,6 +58,6 @@ export async function requireProfile() {
 
 export async function requireAdmin() {
   const profile = await requireProfile();
-  if (profile.role !== "admin") redirect("/dashboard");
+  if (profile.role !== "admin") redirect("/");
   return profile;
 }

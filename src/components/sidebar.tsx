@@ -27,13 +27,13 @@ interface SidebarProps {
 }
 
 const overviewLinks = [
-  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-  { href: "/dashboard/jobs", label: "Jobs", icon: Briefcase },
+  { href: "/", label: "Home", icon: LayoutDashboard },
+  { href: "/jobs", label: "Jobs", icon: Briefcase },
 ];
 
 const setupLinks = [
-  { href: "/dashboard/searches", label: "Searches", icon: Search },
-  { href: "/dashboard/resume", label: "Resume", icon: FileText },
+  { href: "/setup/searches", label: "Searches", icon: Search },
+  { href: "/setup/resume", label: "Resume", icon: FileText },
 ];
 
 const systemLinks = [
@@ -90,8 +90,8 @@ export function Sidebar({ userRole, userEmail }: SidebarProps) {
         </p>
         {overviewLinks.map((link) => {
           const isActive =
-            link.href === "/dashboard"
-              ? pathname === "/dashboard"
+            link.href === "/"
+              ? pathname === "/"
               : pathname.startsWith(link.href);
           return (
             <Link

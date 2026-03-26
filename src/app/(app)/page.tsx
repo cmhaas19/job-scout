@@ -212,7 +212,7 @@ export default function DashboardHomePage() {
             return (
               <Link
                 key={key}
-                href={`/dashboard/jobs?fitCategory=${encodeURIComponent(key)}&postedWithin=1w`}
+                href={`/jobs?fitCategory=${encodeURIComponent(key)}&postedWithin=1w`}
               >
                 <Card className={`hover:shadow-md transition-shadow cursor-pointer border ${colors.border}`}>
                   <CardContent className={`p-4 ${colors.bg}`}>
@@ -239,7 +239,7 @@ export default function DashboardHomePage() {
             Strongest Matches — Last 30 Days
           </h2>
           <Link
-            href="/dashboard/jobs?fitCategory=STRONG+FIT&postedWithin=30d"
+            href="/jobs?fitCategory=STRONG+FIT&postedWithin=30d"
             className="text-xs text-primary hover:underline"
           >
             View all

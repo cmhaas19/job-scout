@@ -454,7 +454,7 @@ export default function JobsPage() {
               <p className="text-sm text-muted-foreground mt-1 mb-4">
                 Run a search to start finding jobs
               </p>
-              <Link href="/dashboard/searches">
+              <Link href="/setup/searches">
                 <Button>
                   <Search className="h-4 w-4 mr-2" />
                   Go to Searches

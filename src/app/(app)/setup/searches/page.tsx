@@ -188,7 +188,7 @@ export default function SearchesPage() {
             <PlayCircle className="h-4 w-4 mr-2" />
             Run All
           </Button>
-          <Button onClick={() => router.push("/dashboard/searches/new")}>
+          <Button onClick={() => router.push("/setup/searches/new")}>
             <Plus className="h-4 w-4 mr-2" />
             New Search
           </Button>
@@ -203,7 +203,7 @@ export default function SearchesPage() {
             <p className="text-sm text-muted-foreground mt-1 mb-4">
               Create your first search to start finding jobs
             </p>
-            <Button onClick={() => router.push("/dashboard/searches/new")}>
+            <Button onClick={() => router.push("/setup/searches/new")}>
               <Plus className="h-4 w-4 mr-2" />
               Create Search
             </Button>
@@ -275,7 +275,7 @@ export default function SearchesPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() =>
-                        router.push(`/dashboard/searches/${search.id}/edit`)
+                        router.push(`/setup/searches/${search.id}/edit`)
                       }
                     >
                       <Pencil className="h-4 w-4" />
@@ -401,7 +401,7 @@ export default function SearchesPage() {
           {runStatus !== "running" && (
             <div className="flex justify-end mt-2">
               {runStatus === "completed" ? (
-                <Button onClick={() => { closeProgress(); router.push("/dashboard/jobs"); }}>
+                <Button onClick={() => { closeProgress(); router.push("/jobs"); }}>
                   View Jobs
                 </Button>
               ) : (

@@ -35,23 +35,30 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // Public routes
-  if (path === "/login" || path === "/register" || path === "/forgot-password") {
+  const publicRoutes = ["/login", "/register", "/forgot-password"];
+  const authRoutes = ["/", "/jobs", "/setup", "/admin"];
+
+  // Public routes — redirect to home if already logged in
+  if (publicRoutes.includes(path)) {
     if (user) {
       const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname = "/";
       return NextResponse.redirect(url);
     }
     return supabaseResponse;
   }
 
-  // Reset password — allow with or without session (user clicks email link)
+  // Reset password — allow with or without session
   if (path === "/reset-password") {
     return supabaseResponse;
   }
 
-  // Protected routes
-  if (path.startsWith("/dashboard") || path.startsWith("/admin")) {
+  // Protected routes — require auth
+  const isProtected = authRoutes.some(
+    (route) => path === route || path.startsWith(route + "/")
+  );
+
+  if (isProtected) {
     if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
@@ -68,22 +75,9 @@ export async function updateSession(request: NextRequest) {
 
       if (!profile || profile.role !== "admin") {
         const url = request.nextUrl.clone();
-        url.pathname = "/dashboard";
+        url.pathname = "/";
         return NextResponse.redirect(url);
       }
-    }
-  }
-
-  // Redirect root to dashboard if logged in
-  if (path === "/") {
-    if (user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
-    } else {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
     }
   }
 

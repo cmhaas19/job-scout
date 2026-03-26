@@ -86,7 +86,7 @@ export function SearchForm({ initialData }: SearchFormProps) {
       return;
     }
 
-    router.push("/dashboard/searches");
+    router.push("/setup/searches");
     router.refresh();
   }
 
@@ -235,7 +235,7 @@ export function SearchForm({ initialData }: SearchFormProps) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push("/dashboard/searches")}
+              onClick={() => router.push("/setup/searches")}
             >
               Cancel
             </Button>
