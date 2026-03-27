@@ -79,7 +79,7 @@ export function Sidebar({ userRole, userEmail }: SidebarProps) {
         <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
           <Compass className="h-5 w-5 text-white" />
         </div>
-        <span className="text-lg font-bold">Job Helm</span>
+        <span className="text-lg font-bold">Job Scout</span>
       </div>
 
       {/* Navigation */}
@@ -213,7 +213,7 @@ export function Sidebar({ userRole, userEmail }: SidebarProps) {
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
             <Compass className="h-4 w-4 text-white" />
           </div>
-          <span className="font-bold">Job Helm</span>
+          <span className="font-bold">Job Scout</span>
         </div>
         <Button
           variant="ghost"

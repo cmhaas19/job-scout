@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Job Helm",
+  title: "Job Scout",
   description: "AI-powered job fit evaluation",
   icons: {
     icon: [

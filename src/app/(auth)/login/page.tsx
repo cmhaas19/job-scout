@@ -45,7 +45,7 @@ export default function LoginPage() {
           <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
             <Compass className="h-6 w-6 text-white" />
           </div>
-          <span className="text-2xl font-bold">Job Helm</span>
+          <span className="text-2xl font-bold">Job Scout</span>
         </div>
 
         <Card className="shadow-lg border-0 shadow-purple-100/50">

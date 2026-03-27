@@ -1,4 +1,4 @@
-# Job Helm
+# Job Scout
 
 AI-powered job fit evaluation platform. Define LinkedIn job searches, scrape results on a daily schedule or on-demand, and let Claude score each job against your resume with a weighted rubric. Rate results to calibrate future evaluations.
 
@@ -58,8 +58,8 @@ AI-powered job fit evaluation platform. Define LinkedIn job searches, scrape res
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/cmhaas19/job-helm.git
-cd job-helm
+git clone https://github.com/cmhaas19/job-scout.git
+cd job-scout
 npm install
 ```
 

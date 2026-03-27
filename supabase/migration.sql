@@ -1,4 +1,4 @@
--- Job Helm Database Schema
+-- Job Scout Database Schema
 -- Run this in your Supabase SQL editor
 
 -- ============================================================
