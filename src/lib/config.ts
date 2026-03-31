@@ -12,6 +12,7 @@ const DEFAULTS: Record<string, unknown> = {
   max_searches_per_user: 10,
   max_refreshes_per_hour: 2,
   max_results_per_search: 100,
+  email_from_address: "digest@oakworks.ai",
 };
 
 export async function getConfig(key: string): Promise<unknown> {

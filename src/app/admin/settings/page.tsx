@@ -25,6 +25,7 @@ const CONFIG_LABELS: Record<string, string> = {
   max_searches_per_user: "Max Searches Per User",
   max_refreshes_per_hour: "Max Refreshes Per Hour",
   max_results_per_search: "Max Results Per Search",
+  email_from_address: "Digest From Address",
 };
 
 export default function AdminSettingsPage() {

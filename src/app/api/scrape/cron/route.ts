@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { runPipeline } from "@/lib/scraper/pipeline";
+import { sendDigestEmail } from "@/lib/email";
 
 export const maxDuration = 300;
 
@@ -76,6 +77,12 @@ async function handleCron(request: NextRequest) {
           stats,
         })
         .eq("id", runLog!.id);
+
+      try {
+        await sendDigestEmail(user.id, runLog!.started_at, "scheduled");
+      } catch (emailErr: any) {
+        console.error("[cron] Digest email failed for user:", user.id, emailErr.message);
+      }
 
       results.push({ userId: user.id, status: "completed", stats });
     } catch (err: any) {

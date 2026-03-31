@@ -9,7 +9,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { FileText, Upload, Check } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { FileText, Upload, Check, Mail } from "lucide-react";
 
 export default function ResumePage() {
   const [resumeText, setResumeText] = useState<string | null>(null);
@@ -17,12 +19,14 @@ export default function ResumePage() {
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [digestEnabled, setDigestEnabled] = useState(true);
 
   const loadResume = useCallback(async () => {
     const res = await fetch("/api/resume");
     const data = await res.json();
     setResumeText(data.resumeText);
     setUploadedAt(data.uploadedAt);
+    setDigestEnabled(data.emailDigestEnabled ?? true);
   }, []);
 
   useEffect(() => {
@@ -143,6 +147,37 @@ export default function ResumePage() {
               </p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Email Digest
+          </CardTitle>
+          <CardDescription>
+            Receive an email summary after each scheduled scrape with new jobs
+            and your top matches from the last 7 days
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={digestEnabled}
+              onCheckedChange={async (checked) => {
+                setDigestEnabled(checked);
+                await fetch("/api/resume", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ emailDigestEnabled: checked }),
+                });
+              }}
+            />
+            <Label>
+              {digestEnabled ? "Digest emails enabled" : "Digest emails disabled"}
+            </Label>
+          </div>
         </CardContent>
       </Card>
     </div>

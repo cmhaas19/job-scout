@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getConfigNumber } from "@/lib/config";
 import { runPipeline } from "@/lib/scraper/pipeline";
+import { sendDigestEmail } from "@/lib/email";
 
 export const maxDuration = 300; // 5 minutes for Vercel
 
@@ -94,6 +95,13 @@ export async function POST(request: NextRequest) {
         .eq("id", runLog.id);
 
       sendEvent("complete", { stats });
+
+      try {
+        await sendDigestEmail(user.id, runLog.started_at, "on_demand");
+        sendEvent("digest", { sent: true });
+      } catch (_) {
+        sendEvent("digest", { sent: false });
+      }
     } catch (err: any) {
       await serviceClient
         .from("run_logs")
