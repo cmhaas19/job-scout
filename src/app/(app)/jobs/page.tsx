@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { FIT_COLORS, formatShortDate } from "@/lib/constants";
 import { readSSEStream } from "@/lib/sse";
+import { useToast } from "@/components/ui/toast";
 import {
   LayoutDashboard,
   Search,
@@ -27,6 +28,8 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 
 interface Job {
@@ -44,6 +47,7 @@ interface Job {
   job_url: string;
   company_logo: string | null;
   skipped: boolean;
+  archived: boolean;
   created_at: string;
   prompt_version: number | null;
 }
@@ -72,6 +76,7 @@ type ReEvalStatus = "idle" | "running" | "completed" | "error";
 
 export default function JobsPage() {
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [total, setTotal] = useState(0);
@@ -89,6 +94,7 @@ export default function JobsPage() {
   const [sortBy, setSortBy] = useState("total_score");
   const [sortOrder, setSortOrder] = useState("desc");
   const [showSkipped, setShowSkipped] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const hasUrlFilters = !!(searchParams.get("company") || searchParams.get("location") || searchParams.get("searchQuery") || searchParams.get("promptVersion") || searchParams.get("postedWithin") || searchParams.get("fitCategory"));
   const [showFilters, setShowFilters] = useState(hasUrlFilters);
 
@@ -133,6 +139,7 @@ export default function JobsPage() {
     if (postedWithinFilter) params.set("postedWithin", postedWithinFilter);
     if (fitCategoryFilter) params.set("fitCategory", fitCategoryFilter);
     if (showSkipped) params.set("skipped", "true");
+    if (showArchived) params.set("showArchived", "true");
 
     const res = await fetch(`/api/jobs?${params.toString()}`);
     const data = await res.json();
@@ -140,7 +147,7 @@ export default function JobsPage() {
     setTotal(data.total || 0);
     setTotalPages(data.totalPages || 1);
     setLoading(false);
-  }, [page, companyFilter, locationFilter, searchQueryFilter, promptVersionFilter, postedWithinFilter, fitCategoryFilter, sortBy, sortOrder, showSkipped]);
+  }, [page, companyFilter, locationFilter, searchQueryFilter, promptVersionFilter, postedWithinFilter, fitCategoryFilter, sortBy, sortOrder, showSkipped, showArchived]);
 
   useEffect(() => {
     loadFilters();
@@ -152,7 +159,7 @@ export default function JobsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [companyFilter, locationFilter, searchQueryFilter, promptVersionFilter, postedWithinFilter, fitCategoryFilter, sortBy, sortOrder, showSkipped]);
+  }, [companyFilter, locationFilter, searchQueryFilter, promptVersionFilter, postedWithinFilter, fitCategoryFilter, sortBy, sortOrder, showSkipped, showArchived]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -220,6 +227,62 @@ export default function JobsPage() {
     }
   }
 
+  async function handleArchive(id: string, archived: boolean, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    const job = jobs.find((j) => j.id === id);
+    await fetch(`/api/jobs/${id}/archive`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived }),
+    });
+    loadJobs();
+    if (job && archived) {
+      showToast(`${job.position} at ${job.company} was archived`, {
+        label: "Undo",
+        onClick: async () => {
+          await fetch(`/api/jobs/${id}/archive`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ archived: false }),
+          });
+          loadJobs();
+        },
+      });
+    }
+  }
+
+  async function handleBulkArchive() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    await Promise.all(
+      ids.map((id) =>
+        fetch(`/api/jobs/${id}/archive`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ archived: true }),
+        })
+      )
+    );
+    const count = ids.length;
+    setSelectedIds(new Set());
+    loadJobs();
+    showToast(`${count} job${count === 1 ? "" : "s"} archived`, {
+      label: "Undo",
+      onClick: async () => {
+        await Promise.all(
+          ids.map((id) =>
+            fetch(`/api/jobs/${id}/archive`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ archived: false }),
+            })
+          )
+        );
+        loadJobs();
+      },
+    });
+  }
+
   function closeReEval() {
     setShowReEval(false);
     setReEvalStatus("idle");
@@ -258,14 +321,24 @@ export default function JobsPage() {
           </div>
           <div className="flex items-center gap-2">
             {selectedIds.size > 0 && (
-              <Button
-                size="sm"
-                onClick={handleReEvaluate}
-                disabled={reEvalStatus === "running"}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Re-evaluate ({selectedIds.size})
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkArchive}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive ({selectedIds.size})
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleReEvaluate}
+                  disabled={reEvalStatus === "running"}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Re-evaluate ({selectedIds.size})
+                </Button>
+              </>
             )}
             <Button
               variant="outline"
@@ -360,6 +433,14 @@ export default function JobsPage() {
                 >
                   {showSkipped ? "Showing Skipped" : "Show Skipped"}
                 </Button>
+                <Button
+                  variant={showArchived ? "default" : "outline"}
+                  size="sm"
+                  className="whitespace-nowrap h-10"
+                  onClick={() => setShowArchived(!showArchived)}
+                >
+                  {showArchived ? "Showing Archived" : "Show Archived"}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -425,13 +506,14 @@ export default function JobsPage() {
                   <SortableHeader label="Rating" field="user_rating" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="w-[90px]" />
                   <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-[120px]">Search</th>
                   <SortableHeader label="Prompt" field="prompt_version" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="w-[70px]" />
+                  <th className="px-3 py-3 w-[50px]" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {jobs.map((job) => (
                   <tr
                     key={job.id}
-                    className={`hover:bg-muted/50 cursor-pointer ${selectedIds.has(job.id) ? "bg-primary/5" : ""}`}
+                    className={`hover:bg-muted/50 cursor-pointer ${selectedIds.has(job.id) ? "bg-primary/5" : ""} ${job.archived ? "opacity-50" : ""}`}
                     onClick={() => setDetailJobId(job.id)}
                   >
                     {/* Checkbox */}
@@ -525,6 +607,21 @@ export default function JobsPage() {
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
+                    </td>
+
+                    {/* Archive */}
+                    <td className="px-3 py-2.5">
+                      <button
+                        onClick={(e) => handleArchive(job.id, !job.archived, e)}
+                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        title={job.archived ? "Unarchive" : "Archive"}
+                      >
+                        {job.archived ? (
+                          <ArchiveRestore className="h-4 w-4" />
+                        ) : (
+                          <Archive className="h-4 w-4" />
+                        )}
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -628,6 +725,7 @@ export default function JobsPage() {
       <JobDetailPanel
         jobId={detailJobId}
         onClose={() => setDetailJobId(null)}
+        onArchiveChange={loadJobs}
       />
     </div>
   );

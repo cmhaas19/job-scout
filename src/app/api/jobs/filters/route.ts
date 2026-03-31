@@ -18,12 +18,14 @@ export async function GET() {
       .select("company")
       .eq("user_id", user.id)
       .eq("skipped", false)
+      .eq("archived", false)
       .order("company"),
     supabase
       .from("job_evaluations")
       .select("location")
       .eq("user_id", user.id)
       .eq("skipped", false)
+      .eq("archived", false)
       .not("location", "is", null)
       .order("location"),
     supabase
@@ -31,6 +33,7 @@ export async function GET() {
       .select("search_query")
       .eq("user_id", user.id)
       .eq("skipped", false)
+      .eq("archived", false)
       .not("search_query", "is", null)
       .order("search_query"),
     supabase
@@ -38,6 +41,7 @@ export async function GET() {
       .select("prompt_version")
       .eq("user_id", user.id)
       .eq("skipped", false)
+      .eq("archived", false)
       .not("prompt_version", "is", null)
       .order("prompt_version"),
   ]);

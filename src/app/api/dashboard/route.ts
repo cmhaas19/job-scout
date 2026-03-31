@@ -28,12 +28,14 @@ export async function GET() {
       .select("fit_category")
       .eq("user_id", user.id)
       .eq("skipped", false)
+      .eq("archived", false)
       .gte("created_at", oneWeekAgo),
     supabase
       .from("job_evaluations")
       .select("id, position, company, location, total_score, fit_category, date_posted, company_logo, search_query, prompt_version")
       .eq("user_id", user.id)
       .eq("skipped", false)
+      .eq("archived", false)
       .eq("fit_category", "STRONG FIT")
       .gte("created_at", thirtyDaysAgo)
       .order("date_posted", { ascending: false })

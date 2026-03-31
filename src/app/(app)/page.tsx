@@ -6,6 +6,7 @@ import { JobDetailPanel } from "@/components/job-detail-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FIT_COLORS, formatDuration, formatShortDate, timeAgo } from "@/lib/constants";
+import { useToast } from "@/components/ui/toast";
 import {
   LayoutDashboard,
   Clock,
@@ -17,6 +18,7 @@ import {
   Building2,
   MapPin,
   ArrowRight,
+  Archive,
 } from "lucide-react";
 
 interface LastRun {
@@ -55,6 +57,7 @@ export default function DashboardHomePage() {
   const [loading, setLoading] = useState(true);
   const [detailJobId, setDetailJobId] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  const { showToast } = useToast();
 
   const loadData = useCallback(async () => {
     const res = await fetch("/api/dashboard");
@@ -63,6 +66,30 @@ export default function DashboardHomePage() {
     }
     setLoading(false);
   }, []);
+
+  async function handleArchive(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    const job = data?.topJobs.find((j) => j.id === id);
+    await fetch(`/api/jobs/${id}/archive`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived: true }),
+    });
+    loadData();
+    if (job) {
+      showToast(`${job.position} at ${job.company} was archived`, {
+        label: "Undo",
+        onClick: async () => {
+          await fetch(`/api/jobs/${id}/archive`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ archived: false }),
+          });
+          loadData();
+        },
+      });
+    }
+  }
 
   useEffect(() => {
     loadData();
@@ -239,6 +266,7 @@ export default function DashboardHomePage() {
                   <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
                   <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</th>
                   <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Posted</th>
+                  <th className="px-4 py-2.5 w-[50px]" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -278,6 +306,15 @@ export default function DashboardHomePage() {
                         {formatShortDate(job.date_posted)}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={(e) => handleArchive(job.id, e)}
+                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        title="Archive"
+                      >
+                        <Archive className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -301,6 +338,7 @@ export default function DashboardHomePage() {
       <JobDetailPanel
         jobId={detailJobId}
         onClose={() => setDetailJobId(null)}
+        onArchiveChange={() => { setDetailJobId(null); loadData(); }}
       />
     </div>
   );

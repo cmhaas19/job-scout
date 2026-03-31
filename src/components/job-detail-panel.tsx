@@ -15,6 +15,8 @@ import {
   TrendingUp,
   TrendingDown,
   X,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -41,15 +43,17 @@ interface JobDetail {
   prompt_version: number | null;
   skipped: boolean;
   skip_reason: string | null;
+  archived: boolean;
 }
 
 
 interface JobDetailPanelProps {
   jobId: string | null;
   onClose: () => void;
+  onArchiveChange?: () => void;
 }
 
-export function JobDetailPanel({ jobId, onClose }: JobDetailPanelProps) {
+export function JobDetailPanel({ jobId, onClose, onArchiveChange }: JobDetailPanelProps) {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
@@ -85,6 +89,19 @@ export function JobDetailPanel({ jobId, onClose }: JobDetailPanelProps) {
       return () => document.removeEventListener("keydown", handleKeyDown);
     }
   }, [jobId, onClose]);
+
+  async function handleArchiveToggle() {
+    if (!job) return;
+    const res = await fetch(`/api/jobs/${job.id}/archive`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived: !job.archived }),
+    });
+    if (res.ok) {
+      setJob({ ...job, archived: !job.archived });
+      onArchiveChange?.();
+    }
+  }
 
   async function handleRate() {
     if (!jobId) return;
@@ -137,17 +154,37 @@ export function JobDetailPanel({ jobId, onClose }: JobDetailPanelProps) {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {job && (
-                  <a
-                    href={job.job_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Button variant="outline" size="sm">
-                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                      LinkedIn
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleArchiveToggle}
+                      title={job.archived ? "Unarchive" : "Archive"}
+                    >
+                      {job.archived ? (
+                        <>
+                          <ArchiveRestore className="h-3.5 w-3.5 mr-1.5" />
+                          Unarchive
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="h-3.5 w-3.5 mr-1.5" />
+                          Archive
+                        </>
+                      )}
                     </Button>
-                  </a>
+                    <a
+                      href={job.job_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button variant="outline" size="sm">
+                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                        LinkedIn
+                      </Button>
+                    </a>
+                  </>
                 )}
                 <Button variant="ghost" size="icon" onClick={onClose}>
                   <X className="h-4 w-4" />
@@ -165,6 +202,14 @@ export function JobDetailPanel({ jobId, onClose }: JobDetailPanelProps) {
                 </div>
               ) : job ? (
                 <div className="p-6 space-y-6">
+                  {/* Archived banner */}
+                  {job.archived && (
+                    <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+                      <Archive className="h-4 w-4" />
+                      This job is archived
+                    </div>
+                  )}
+
                   {/* Meta row */}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {job.location && (

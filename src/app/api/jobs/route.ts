@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   const fitCategory = url.searchParams.get("fitCategory");
   const postedWithin = url.searchParams.get("postedWithin");
   const skipped = url.searchParams.get("skipped");
+  const showArchived = url.searchParams.get("showArchived");
   const sortBy = url.searchParams.get("sortBy") || "total_score";
   const sortOrder = url.searchParams.get("sortOrder") || "desc";
   const page = parseInt(url.searchParams.get("page") || "1");
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("job_evaluations")
-    .select("id, position, company, location, salary, fit_category, total_score, ago_time, date_posted, user_rating, search_query, job_url, company_logo, skipped, created_at, prompt_version", { count: "exact" })
+    .select("id, position, company, location, salary, fit_category, total_score, ago_time, date_posted, user_rating, search_query, job_url, company_logo, skipped, archived, created_at, prompt_version", { count: "exact" })
     .eq("user_id", user.id);
 
   // Default: hide skipped
@@ -35,6 +36,11 @@ export async function GET(request: NextRequest) {
     query = query.eq("skipped", true);
   } else {
     query = query.eq("skipped", false);
+  }
+
+  // Default: hide archived unless explicitly requested
+  if (showArchived !== "true") {
+    query = query.eq("archived", false);
   }
 
   if (company) {

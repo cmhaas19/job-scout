@@ -1,5 +1,6 @@
 import { requireProfile } from "@/lib/auth";
 import { Sidebar } from "@/components/sidebar";
+import { ToastProvider } from "@/components/ui/toast";
 
 export default async function DashboardLayout({
   children,
@@ -13,7 +14,9 @@ export default async function DashboardLayout({
       <Sidebar userRole={profile.role} userEmail={profile.email} />
       <main className="lg:pl-64 h-full">
         <div className="pt-16 lg:pt-0 h-full">
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </div>
       </main>
     </div>
