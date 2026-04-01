@@ -68,6 +68,7 @@ export async function sendDigestEmail(
     )
     .eq("user_id", userId)
     .eq("skipped", false)
+    .eq("archived", false)
     .gte("created_at", runStartedAt)
     .order("total_score", { ascending: false });
 
@@ -95,6 +96,7 @@ export async function sendDigestEmail(
     )
     .eq("user_id", userId)
     .eq("skipped", false)
+    .eq("archived", false)
     .gte("created_at", sevenDaysAgo)
     .order("total_score", { ascending: false })
     .limit(10);
