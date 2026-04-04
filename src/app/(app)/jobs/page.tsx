@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { FIT_COLORS, formatShortDate } from "@/lib/constants";
 import { readSSEStream } from "@/lib/sse";
 import { useToast } from "@/components/ui/toast";
@@ -30,6 +31,7 @@ import {
   XCircle,
   Archive,
   ArchiveRestore,
+  LinkIcon,
 } from "lucide-react";
 
 interface Job {
@@ -111,6 +113,12 @@ export default function JobsPage() {
 
   // Detail panel
   const [detailJobId, setDetailJobId] = useState<string | null>(null);
+
+  // Import job modal
+  const [showImport, setShowImport] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState("");
 
   // Re-evaluate modal
   const [reEvalStatus, setReEvalStatus] = useState<ReEvalStatus>("idle");
@@ -227,6 +235,38 @@ export default function JobsPage() {
     }
   }
 
+  async function handleImport() {
+    if (!importUrl.trim()) return;
+    setImportLoading(true);
+    setImportError("");
+    try {
+      const res = await fetch("/api/jobs/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportError(data.error);
+        setImportLoading(false);
+        return;
+      }
+      setShowImport(false);
+      setImportUrl("");
+      setImportLoading(false);
+      if (data.existing) {
+        showToast("This job already exists in your list");
+      } else {
+        showToast("Job imported and evaluated");
+        loadJobs();
+      }
+      setDetailJobId(data.jobId);
+    } catch {
+      setImportError("Something went wrong");
+      setImportLoading(false);
+    }
+  }
+
   async function handleArchive(id: string, archived: boolean, e?: React.MouseEvent) {
     e?.stopPropagation();
     const job = jobs.find((j) => j.id === id);
@@ -340,6 +380,14 @@ export default function JobsPage() {
                 </Button>
               </>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowImport(true); setImportError(""); setImportUrl(""); }}
+            >
+              <LinkIcon className="h-4 w-4 mr-2" />
+              Import
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -718,6 +766,46 @@ export default function JobsPage() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Import job modal */}
+      <Dialog open={showImport} onOpenChange={(open) => { if (!open) setShowImport(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import LinkedIn Job</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mt-2">
+            Paste a LinkedIn job posting URL to import and evaluate it.
+          </p>
+          <div className="mt-4">
+            <Input
+              placeholder="https://www.linkedin.com/jobs/view/..."
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleImport(); }}
+              disabled={importLoading}
+              autoFocus
+            />
+            {importError && (
+              <p className="text-sm text-destructive mt-2">{importError}</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button variant="outline" onClick={() => setShowImport(false)} disabled={importLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleImport} disabled={importLoading || !importUrl.trim()}>
+              {importLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                "Import"
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

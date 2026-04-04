@@ -260,4 +260,103 @@ export async function fetchJobDescription(
   return null;
 }
 
+export interface JobPageData {
+  position: string;
+  company: string;
+  location: string;
+  description: string;
+  salary: string;
+  companyLogo: string | null;
+  agoTime: string;
+  datePosted: string | null;
+}
+
+export async function fetchJobPage(
+  jobUrl: string,
+  retries = 2,
+  baseDelay = 1500
+): Promise<JobPageData | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const html = await fetchPage(jobUrl);
+      const $ = cheerio.load(html);
+
+      const position =
+        $(".top-card-layout__title").text().trim() ||
+        $("h1").first().text().trim() ||
+        "";
+
+      const company =
+        $(".topcard__org-name-link").text().trim() ||
+        $(".top-card-layout__second-subline a").first().text().trim() ||
+        $("a[data-tracking-control-name='public_jobs_topcard-org-name']").text().trim() ||
+        "";
+
+      if (!position && !company) return null;
+
+      const location =
+        $(".topcard__flavor--bullet").text().trim() ||
+        $(".top-card-layout__second-subline .topcard__flavor").last().text().trim() ||
+        "";
+
+      const salary =
+        $(".salary-main-rail__data-body .compensation__salary").text().trim().replace(/\s+/g, " ") ||
+        $(".compensation__salary").text().trim().replace(/\s+/g, " ") ||
+        "Not specified";
+
+      const companyLogo =
+        $(".artdeco-entity-image").attr("data-delayed-url") ||
+        $(".top-card-layout__entity-image img").attr("src") ||
+        null;
+
+      const agoTime =
+        $(".posted-time-ago__text").text().trim() ||
+        $("span.topcard__flavor--metadata").text().trim() ||
+        "";
+
+      const datePosted = parseAgoTime(agoTime) || null;
+
+      // Extract description
+      let descEl =
+        $(".show-more-less-html__markup").first() ||
+        $(".description__text").first() ||
+        $(".jobs-description__content").first();
+
+      if (!descEl.length) {
+        let maxLen = 0;
+        $("section").each((_, el) => {
+          const text = $(el).text().length;
+          if (text > maxLen) {
+            maxLen = text;
+            descEl = $(el);
+          }
+        });
+      }
+
+      const descHtml = descEl.length ? descEl.html() : null;
+      const description = descHtml ? htmlToMarkdown(descHtml) : "";
+
+      return {
+        position,
+        company,
+        location,
+        description,
+        salary,
+        companyLogo,
+        agoTime,
+        datePosted,
+      };
+    } catch (err: any) {
+      if (attempt < retries) {
+        await new Promise((r) =>
+          setTimeout(r, baseDelay * Math.pow(2, attempt))
+        );
+        continue;
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
 export { USER_AGENT };
