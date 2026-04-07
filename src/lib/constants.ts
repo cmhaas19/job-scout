@@ -16,11 +16,11 @@ export const FIT_SCORE_COLORS: Record<string, string> = {
 };
 
 export const SCORE_LABELS: Record<string, { label: string; max: number }> = {
-  required_skills: { label: "Required Skills", max: 35 },
+  required_skills: { label: "Required Skills", max: 30 },
   years_of_experience: { label: "Experience", max: 10 },
   role_level_alignment: { label: "Role Level", max: 20 },
-  industry_domain_match: { label: "Industry Match", max: 20 },
-  nice_to_have_skills: { label: "Nice-to-Have", max: 10 },
+  industry_domain_match: { label: "Industry Match", max: 30 },
+  nice_to_have_skills: { label: "Nice-to-Have", max: 5 },
   education_certs: { label: "Education", max: 5 },
 };
 
