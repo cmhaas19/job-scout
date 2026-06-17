@@ -8,6 +8,7 @@ const DEFAULTS: Record<string, unknown> = {
   score_threshold_borderline: 60,
   eval_model: "claude-sonnet-4-20250514",
   eval_concurrency: 5,
+  fetch_concurrency: 5,
   delay_between_fetches_ms: 1500,
   max_searches_per_user: 10,
   max_refreshes_per_hour: 2,

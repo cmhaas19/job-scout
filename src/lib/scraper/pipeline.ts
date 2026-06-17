@@ -134,8 +134,9 @@ export async function runPipeline(
     const minCompTopEnd = config.min_comp_top_end != null ? Number(config.min_comp_top_end) : null;
     const delayMs = Number(config.delay_between_fetches_ms) || 1500;
     const evalConcurrency = Number(config.eval_concurrency) || 5;
+    const fetchConcurrency = Number(config.fetch_concurrency) || 5;
 
-    log(`Config: blockedPublishers=${blockedPublishers.length}, minComp=$${minCompTopEnd}, delay=${delayMs}ms, concurrency=${evalConcurrency}`);
+    log(`Config: blockedPublishers=${blockedPublishers.length}, minComp=$${minCompTopEnd}, delay=${delayMs}ms, evalConcurrency=${evalConcurrency}, fetchConcurrency=${fetchConcurrency}`);
 
     // 3. Scrape each search
     stats.phase = "scraping";
@@ -325,23 +326,38 @@ export async function runPipeline(
     stats.phase = "fetching_descriptions";
     await updateRunLog();
 
-    log(`Fetching job descriptions for ${filteredJobs.length} jobs...`);
+    log(`Fetching job descriptions for ${filteredJobs.length} jobs (concurrency: ${fetchConcurrency})...`);
 
-    const jobsToEvaluate: typeof filteredJobs = [];
+    for (let i = 0; i < filteredJobs.length; i += fetchConcurrency) {
+      const batch = filteredJobs.slice(i, i + fetchConcurrency);
+      const batchNum = Math.floor(i / fetchConcurrency) + 1;
+      log(`  Batch ${batchNum}: fetching ${batch.length} descriptions...`);
 
-    for (let i = 0; i < filteredJobs.length; i++) {
-      const job = filteredJobs[i];
-      log(`  [${i + 1}/${filteredJobs.length}] Fetching JD: ${job.company} — ${job.position}`);
-      try {
-        const description = await fetchJobDescription(job.jobUrl, 2, delayMs);
+      const results = await Promise.all(
+        batch.map(async (job) => {
+          try {
+            const description = await fetchJobDescription(job.jobUrl, 2, delayMs);
+            return { job, description, error: null as string | null };
+          } catch (err: any) {
+            return { job, description: null, error: err.message as string };
+          }
+        })
+      );
+
+      for (const { job, description, error } of results) {
+        if (error) {
+          stats.jobsFailed++;
+          log(`    ✗ ${job.company}: ERROR — ${error}`);
+          stats.errors.push(`Fetch JD ${job.company}: ${error}`);
+          continue;
+        }
         if (description) {
-          jobsToEvaluate.push({ ...job, position: job.position });
           (job as any)._description = description;
           stats.jobsFetched++;
-          log(`    ✓ Got ${description.length} chars`);
+          log(`    ✓ ${job.company}: ${description.length} chars`);
         } else {
           stats.jobsFailed++;
-          log(`    ✗ No description found`);
+          log(`    ✗ ${job.company}: no description found`);
           await supabase.from("job_evaluations").upsert(
             {
               user_id: userId,
@@ -361,17 +377,14 @@ export async function runPipeline(
             { onConflict: "user_id,job_url" }
           );
         }
-      } catch (err: any) {
-        stats.jobsFailed++;
-        log(`    ✗ ERROR: ${err.message}`);
-        stats.errors.push(`Fetch JD ${job.company}: ${err.message}`);
       }
 
-      if (i < filteredJobs.length - 1) {
+      // Throttle between batches (not after the last one) to stay polite to LinkedIn.
+      if (i + fetchConcurrency < filteredJobs.length) {
         await new Promise((r) => setTimeout(r, delayMs));
       }
 
-      stats.phase = `fetching_descriptions (${i + 1}/${filteredJobs.length})`;
+      stats.phase = `fetching_descriptions (${Math.min(i + fetchConcurrency, filteredJobs.length)}/${filteredJobs.length})`;
       await updateRunLog();
     }
 

@@ -343,7 +343,8 @@ INSERT INTO system_config (key, value, description) VALUES
   ('score_threshold_borderline', '60', 'Minimum score for BORDERLINE'),
   ('eval_model', '"claude-sonnet-4-20250514"', 'Claude model for evaluations'),
   ('eval_concurrency', '5', 'Max parallel Claude API calls per run'),
-  ('delay_between_fetches_ms', '1500', 'Delay between JD fetch requests (ms)'),
+  ('fetch_concurrency', '5', 'Max parallel job-description fetches per batch'),
+  ('delay_between_fetches_ms', '1500', 'Delay between JD fetch batches (ms)'),
   ('max_searches_per_user', '10', 'Max saved searches per user'),
   ('max_refreshes_per_hour', '2', 'Max on-demand scrapes per user per hour'),
   ('max_results_per_search', '100', 'Max results per search query')
