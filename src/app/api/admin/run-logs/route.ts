@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { failStaleRuns } from "@/lib/scraper/stale-runs";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
   }
 
   const serviceClient = await createServiceClient();
+
+  // Auto-heal orphaned runs so the list reflects reality.
+  await failStaleRuns(serviceClient);
+
   const page = parseInt(request.nextUrl.searchParams.get("page") || "1");
   const limit = 50;
   const offset = (page - 1) * limit;

@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { runPipeline } from "@/lib/scraper/pipeline";
+import { failStaleRuns } from "@/lib/scraper/stale-runs";
 import { sendDigestEmail } from "@/lib/email";
 
 export const maxDuration = 300;
+
+function statusFromPhase(phase: string): "completed" | "failed" | "cancelled" {
+  if (phase === "failed") return "failed";
+  if (phase === "cancelled") return "cancelled";
+  return "completed";
+}
 
 function isAuthorized(request: NextRequest): boolean {
   // Vercel Cron sends the secret as Authorization: Bearer <CRON_SECRET>
@@ -29,6 +36,9 @@ async function handleCron(request: NextRequest) {
   }
 
   const supabase = await createServiceClient();
+
+  // Sweep any runs orphaned by a previously killed function.
+  await failStaleRuns(supabase);
 
   // Find all users with active searches and resume
   const { data: users } = await supabase
@@ -60,6 +70,7 @@ async function handleCron(request: NextRequest) {
         trigger_type: "scheduled",
         status: "running",
         started_at: new Date().toISOString(),
+        last_heartbeat_at: new Date().toISOString(),
         stats: { phase: "starting" },
       })
       .select()
@@ -67,24 +78,27 @@ async function handleCron(request: NextRequest) {
 
     try {
       const stats = await runPipeline(user.id, undefined, runLog?.id);
+      const finalStatus = statusFromPhase(stats.phase);
 
       await supabase
         .from("run_logs")
         .update({
-          status: "completed",
+          status: finalStatus,
           finished_at: new Date().toISOString(),
           duration_ms: Date.now() - new Date(runLog!.started_at).getTime(),
           stats,
         })
         .eq("id", runLog!.id);
 
-      try {
-        await sendDigestEmail(user.id, runLog!.started_at, "scheduled");
-      } catch (emailErr: any) {
-        console.error("[cron] Digest email failed for user:", user.id, emailErr.message);
+      if (finalStatus === "completed") {
+        try {
+          await sendDigestEmail(user.id, runLog!.started_at, "scheduled");
+        } catch (emailErr: any) {
+          console.error("[cron] Digest email failed for user:", user.id, emailErr.message);
+        }
       }
 
-      results.push({ userId: user.id, status: "completed", stats });
+      results.push({ userId: user.id, status: finalStatus, stats });
     } catch (err: any) {
       await supabase
         .from("run_logs")

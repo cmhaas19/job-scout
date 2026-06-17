@@ -1,3 +1,8 @@
+// A run is considered stale (its serverless function likely died) if it hasn't
+// written a heartbeat within this window. Heartbeats fire at least once per job,
+// so this much silence on a "running" row means it's no longer executing.
+export const STALE_RUN_THRESHOLD_MS = 3 * 60 * 1000;
+
 export const FIT_CATEGORIES = ["STRONG FIT", "GOOD FIT", "BORDERLINE", "WEAK FIT"] as const;
 export type FitCategory = (typeof FIT_CATEGORIES)[number];
 

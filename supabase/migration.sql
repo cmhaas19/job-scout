@@ -115,12 +115,14 @@ CREATE TABLE run_logs (
   user_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   trigger_type  TEXT NOT NULL CHECK (trigger_type IN ('scheduled', 'on_demand')),
   search_id     UUID REFERENCES saved_searches(id) ON DELETE SET NULL,
-  status        TEXT NOT NULL CHECK (status IN ('running', 'completed', 'failed')),
+  status        TEXT NOT NULL CHECK (status IN ('running', 'completed', 'failed', 'cancelled')),
   started_at    TIMESTAMPTZ NOT NULL,
   finished_at   TIMESTAMPTZ,
   duration_ms   INTEGER,
   stats         JSONB,
   error         TEXT,
+  last_heartbeat_at TIMESTAMPTZ,
+  cancel_requested  BOOLEAN NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
