@@ -35,6 +35,14 @@ interface SavedSearch {
 
 export type PipelineLogFn = (msg: string) => void;
 
+/** Thrown when a run is cancelled via the `cancel_requested` flag on its run_logs row. */
+export class CancelledError extends Error {
+  constructor(message = "Cancelled by admin") {
+    super(message);
+    this.name = "CancelledError";
+  }
+}
+
 function defaultLog(msg: string) {
   console.log(`[pipeline] ${msg}`);
 }
@@ -65,12 +73,19 @@ export async function runPipeline(
     errors: [],
   };
 
+  // Writes a heartbeat + latest stats on every checkpoint, and aborts the run
+  // (via CancelledError) if an admin has set cancel_requested in the meantime.
   async function updateRunLog() {
     if (!runLogId) return;
-    await supabase
+    const { data } = await supabase
       .from("run_logs")
-      .update({ stats })
-      .eq("id", runLogId);
+      .update({ stats, last_heartbeat_at: new Date().toISOString() })
+      .eq("id", runLogId)
+      .select("cancel_requested")
+      .single();
+    if (data?.cancel_requested) {
+      throw new CancelledError();
+    }
   }
 
   log(`Starting pipeline for user ${userId.slice(0, 8)}...`);
@@ -484,10 +499,25 @@ export async function runPipeline(
       log(`Errors: ${stats.errors.join("; ")}`);
     }
   } catch (err: any) {
-    stats.phase = "failed";
-    stats.errors.push(err.message);
-    log(`Pipeline FAILED: ${err.message}`);
-    await updateRunLog();
+    if (err instanceof CancelledError) {
+      stats.phase = "cancelled";
+      log(`Pipeline CANCELLED by admin`);
+    } else {
+      stats.phase = "failed";
+      stats.errors.push(err.message);
+      log(`Pipeline FAILED: ${err.message}`);
+    }
+    // Best-effort final stats write; don't re-check the cancel flag here.
+    if (runLogId) {
+      try {
+        await supabase
+          .from("run_logs")
+          .update({ stats, last_heartbeat_at: new Date().toISOString() })
+          .eq("id", runLogId);
+      } catch (_) {
+        /* ignore */
+      }
+    }
   }
 
   return stats;

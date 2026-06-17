@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { SortableHeader } from "@/components/ui/sortable-header";
-import { formatDuration, formatShortDate } from "@/lib/constants";
+import { formatDuration, formatShortDate, STALE_RUN_THRESHOLD_MS } from "@/lib/constants";
 import {
   History,
   CheckCircle2,
@@ -13,6 +13,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Ban,
+  RotateCw,
 } from "lucide-react";
 
 interface RunLog {
@@ -23,6 +25,8 @@ interface RunLog {
   started_at: string;
   finished_at: string | null;
   duration_ms: number | null;
+  last_heartbeat_at: string | null;
+  cancel_requested: boolean;
   stats: any;
   error: string | null;
   profiles: { email: string };
@@ -31,7 +35,16 @@ interface RunLog {
 function StatusIcon({ status }: { status: string }) {
   if (status === "running") return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
   if (status === "completed") return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+  if (status === "cancelled") return <Ban className="h-4 w-4 text-muted-foreground" />;
   return <XCircle className="h-4 w-4 text-destructive" />;
+}
+
+// For a running row, returns how long it's been since the last heartbeat and
+// whether that exceeds the stale threshold (i.e. the run is likely dead).
+function staleness(log: RunLog): { stale: boolean; mins: number } {
+  const last = log.last_heartbeat_at ?? log.started_at;
+  const ms = Date.now() - new Date(last).getTime();
+  return { stale: ms > STALE_RUN_THRESHOLD_MS, mins: Math.floor(ms / 60000) };
 }
 
 const PAGE_SIZE = 50;
@@ -44,6 +57,7 @@ export default function AdminRunLogsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [sortBy, setSortBy] = useState("started_at");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const loadLogs = useCallback(async () => {
     const res = await fetch(`/api/admin/run-logs?page=${page}`);
@@ -57,6 +71,36 @@ export default function AdminRunLogsPage() {
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
+
+  // Poll while any run is in progress so cancels / heartbeats / auto-heals show
+  // up without a manual refresh.
+  const hasRunning = logs.some((l) => l.status === "running");
+  useEffect(() => {
+    if (!hasRunning) return;
+    const t = setInterval(loadLogs, 10000);
+    return () => clearInterval(t);
+  }, [hasRunning, loadLogs]);
+
+  async function handleKill(id: string) {
+    if (!confirm("Kill this run? A live run will stop at its next checkpoint; a stuck run is cleared immediately.")) return;
+    setActionId(id);
+    try {
+      await fetch(`/api/admin/run-logs/${id}/cancel`, { method: "POST" });
+      await loadLogs();
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function handleRerun(id: string) {
+    setActionId(id);
+    try {
+      await fetch(`/api/admin/run-logs/${id}/rerun`, { method: "POST" });
+      await loadLogs();
+    } finally {
+      setActionId(null);
+    }
+  }
 
   function handleSort(field: string) {
     if (sortBy === field) {
@@ -142,6 +186,7 @@ export default function AdminRunLogsPage() {
                   <SortableHeader label="Found" field="jobsFound" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="w-[80px]" />
                   <SortableHeader label="Evaluated" field="jobsEvaluated" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="w-[100px]" />
                   <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phase / Error</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-[140px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -157,6 +202,8 @@ export default function AdminRunLogsPage() {
                             ? "strong"
                             : log.status === "running"
                             ? "default"
+                            : log.status === "cancelled"
+                            ? "secondary"
                             : "destructive"
                         }
                         className="text-xs"
@@ -197,11 +244,51 @@ export default function AdminRunLogsPage() {
                     <td className="px-3 py-2.5">
                       {log.error ? (
                         <span className="text-xs text-destructive line-clamp-1">{log.error}</span>
+                      ) : log.status === "running" ? (
+                        (() => {
+                          const { stale, mins } = staleness(log);
+                          const phase = log.stats?.phase?.replace(/_/g, " ") || "running";
+                          return (
+                            <span className="text-xs whitespace-nowrap">
+                              <span className="text-muted-foreground capitalize">{phase}</span>
+                              <span className={stale ? "text-destructive font-medium" : "text-emerald-600"}>
+                                {" · "}
+                                {stale ? `stalled ${mins}m` : "active"}
+                              </span>
+                            </span>
+                          );
+                        })()
                       ) : (
                         <span className="text-xs text-muted-foreground capitalize whitespace-nowrap">
                           {log.stats?.phase?.replace(/_/g, " ") || "—"}
                         </span>
                       )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-end gap-1">
+                        {log.status === "running" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-destructive hover:text-destructive"
+                            disabled={actionId === log.id}
+                            onClick={() => handleKill(log.id)}
+                          >
+                            <Ban className="h-3.5 w-3.5 mr-1" />
+                            Kill
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          disabled={actionId === log.id}
+                          onClick={() => handleRerun(log.id)}
+                        >
+                          <RotateCw className="h-3.5 w-3.5 mr-1" />
+                          Re-run
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}

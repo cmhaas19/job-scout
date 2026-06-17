@@ -3,7 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getConfigNumber } from "@/lib/config";
 import { runPipeline } from "@/lib/scraper/pipeline";
+import { failStaleRuns } from "@/lib/scraper/stale-runs";
 import { sendDigestEmail } from "@/lib/email";
+
+function statusFromPhase(phase: string): "completed" | "failed" | "cancelled" {
+  if (phase === "failed") return "failed";
+  if (phase === "cancelled") return "cancelled";
+  return "completed";
+}
 
 export const maxDuration = 300; // 5 minutes for Vercel
 
@@ -20,6 +27,9 @@ export async function POST(request: NextRequest) {
   // Rate limit check
   const maxRefreshes = (await getConfigNumber("max_refreshes_per_hour")) ?? 2;
   const serviceClient = await createServiceClient();
+
+  // Sweep any runs orphaned by a previously killed function before doing anything else.
+  await failStaleRuns(serviceClient);
 
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count } = await serviceClient
@@ -50,6 +60,7 @@ export async function POST(request: NextRequest) {
       search_id: searchId,
       status: "running",
       started_at: new Date().toISOString(),
+      last_heartbeat_at: new Date().toISOString(),
       stats: { phase: "starting" },
     })
     .select()
@@ -84,10 +95,12 @@ export async function POST(request: NextRequest) {
         }
       );
 
+      const finalStatus = statusFromPhase(stats.phase);
+
       await serviceClient
         .from("run_logs")
         .update({
-          status: stats.phase === "failed" ? "failed" : "completed",
+          status: finalStatus,
           finished_at: new Date().toISOString(),
           duration_ms: Date.now() - new Date(runLog.started_at).getTime(),
           stats,
@@ -96,11 +109,14 @@ export async function POST(request: NextRequest) {
 
       sendEvent("complete", { stats });
 
-      try {
-        await sendDigestEmail(user.id, runLog.started_at, "on_demand");
-        sendEvent("digest", { sent: true });
-      } catch (_) {
-        sendEvent("digest", { sent: false });
+      // Skip the digest email for cancelled runs.
+      if (finalStatus === "completed") {
+        try {
+          await sendDigestEmail(user.id, runLog.started_at, "on_demand");
+          sendEvent("digest", { sent: true });
+        } catch (_) {
+          sendEvent("digest", { sent: false });
+        }
       }
     } catch (err: any) {
       await serviceClient
