@@ -91,3 +91,16 @@ export function normalizeJobUrl(rawUrl: string): string {
     return rawUrl.split("?")[0];
   }
 }
+
+/**
+ * Extracts the stable numeric LinkedIn job ID from a job URL.
+ * LinkedIn paths embed a title slug before the ID, e.g.
+ * `/jobs/view/senior-engineer-at-acme-4012345678` → `4012345678`.
+ * Returns null for non-LinkedIn / imported URLs that have no such ID, so
+ * callers can fall back to URL-based keying.
+ */
+export function extractJobId(rawUrl: string): string | null {
+  const path = normalizeJobUrl(rawUrl);
+  const match = path.match(/(\d{8,})\/?$/);
+  return match ? match[1] : null;
+}

@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { buildLinkedInSearchUrl } from "./url-builder";
+import { buildLinkedInSearchUrl, extractJobId, normalizeJobUrl } from "./url-builder";
 import { parseSearchResults, fetchPage, fetchJobDescription, type JobCard } from "./parser";
 import { parseTopSalary } from "./salary";
 import { evaluateJob } from "@/lib/evaluator";
@@ -144,15 +144,30 @@ export async function runPipeline(
 
     const allJobs: (JobCard & { searchId: string; searchName: string })[] = [];
 
+    // Stable dedup key: the numeric LinkedIn job ID when present, else the
+    // normalized URL (covers imported / non-LinkedIn jobs).
+    const dedupKey = (url: string) => extractJobId(url) ?? normalizeJobUrl(url);
+
+    // LinkedIn's guest search returns overlapping/rotating pages, so a single
+    // all-duplicate page is NOT a reliable end-of-results signal. Tolerate a few
+    // consecutive non-productive pages before stopping, bounded by a hard page cap.
+    const MAX_EMPTY_OR_DUP_PAGES = 3;
+    const MAX_PAGES = 40; // ~1000 results, LinkedIn's practical guest ceiling
+
     for (const search of searches as SavedSearch[]) {
       stats.searchesRun++;
       let start = 0;
-      const seenUrls = new Set<string>();
+      let page = 0;
+      let nonProductivePages = 0;
+      const seenKeys = new Set<string>();
       const limit = search.result_limit || 100;
 
       log(`Scraping "${search.name}" (keyword: "${search.keyword}", limit: ${limit})`);
 
-      while (allJobs.filter((j) => j.searchId === search.id).length < limit) {
+      while (
+        allJobs.filter((j) => j.searchId === search.id).length < limit &&
+        page < MAX_PAGES
+      ) {
         const url = buildLinkedInSearchUrl({
           keyword: search.keyword,
           location: search.location,
@@ -171,16 +186,13 @@ export async function runPipeline(
           log(`  Got ${html.length} bytes of HTML`);
           const cards = parseSearchResults(html);
           log(`  Parsed ${cards.length} job cards`);
-
-          if (cards.length === 0) {
-            log(`  No cards found — stopping pagination`);
-            break;
-          }
+          page++;
 
           let newCards = 0;
           for (const card of cards) {
-            if (!seenUrls.has(card.jobUrl)) {
-              seenUrls.add(card.jobUrl);
+            const key = dedupKey(card.jobUrl);
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
               allJobs.push({
                 ...card,
                 searchId: search.id,
@@ -193,8 +205,13 @@ export async function runPipeline(
           log(`  ${newCards} new unique jobs (${allJobs.filter((j) => j.searchId === search.id).length} total for this search)`);
 
           if (newCards === 0) {
-            log(`  All duplicates — stopping pagination`);
-            break;
+            nonProductivePages++;
+            if (nonProductivePages >= MAX_EMPTY_OR_DUP_PAGES) {
+              log(`  ${nonProductivePages} consecutive non-productive pages — stopping pagination`);
+              break;
+            }
+          } else {
+            nonProductivePages = 0;
           }
 
           start += 25;
@@ -217,17 +234,25 @@ export async function runPipeline(
     stats.phase = "deduplicating";
     await updateRunLog();
 
-    const { data: existingJobs } = await supabase
-      .from("job_evaluations")
-      .select("job_url")
-      .eq("user_id", userId);
-
-    const existingUrls = new Set(
-      (existingJobs || []).map((j: { job_url: string }) => j.job_url)
-    );
+    // Load ALL existing job URLs in 1000-row pages (PostgREST caps a single
+    // response at 1000), so dedup stays complete for users with many jobs.
+    const existingKeys = new Set<string>();
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data: existingJobs } = await supabase
+        .from("job_evaluations")
+        .select("job_url")
+        .eq("user_id", userId)
+        .range(from, from + PAGE - 1);
+      if (!existingJobs || existingJobs.length === 0) break;
+      for (const j of existingJobs as { job_url: string }[]) {
+        existingKeys.add(dedupKey(j.job_url));
+      }
+      if (existingJobs.length < PAGE) break;
+    }
 
     let filteredJobs = allJobs.filter((job) => {
-      if (existingUrls.has(job.jobUrl)) {
+      if (existingKeys.has(dedupKey(job.jobUrl))) {
         stats.jobsSkippedDuplicate++;
         return false;
       }
