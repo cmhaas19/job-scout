@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { SearchForm, type SearchFormData } from "@/components/search-form";
-import { readSSEStream } from "@/lib/sse";
 import {
   Search,
   Plus,
@@ -41,7 +40,7 @@ interface SavedSearch {
   created_at: string;
 }
 
-type RunStatus = "idle" | "running" | "completed" | "error";
+type TriggerState = "idle" | "queuing" | "queued" | "error";
 
 export default function SearchesPage() {
   const router = useRouter();
@@ -53,13 +52,11 @@ export default function SearchesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingSearch, setEditingSearch] = useState<SearchFormData | null>(null);
 
-  // Progress modal state
-  const [runStatus, setRunStatus] = useState<RunStatus>("idle");
-  const [runLogs, setRunLogs] = useState<string[]>([]);
-  const [runStats, setRunStats] = useState<any>(null);
-  const [runError, setRunError] = useState<string | null>(null);
-  const [showProgress, setShowProgress] = useState(false);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  // Trigger (Inngest) modal state
+  const [triggerState, setTriggerState] = useState<TriggerState>("idle");
+  const [queuedCount, setQueuedCount] = useState(0);
+  const [triggerError, setTriggerError] = useState<string | null>(null);
+  const [showTrigger, setShowTrigger] = useState(false);
 
   const loadSearches = useCallback(async () => {
     const res = await fetch("/api/searches");
@@ -71,10 +68,6 @@ export default function SearchesPage() {
   useEffect(() => {
     loadSearches();
   }, [loadSearches]);
-
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [runLogs]);
 
   async function toggleActive(search: SavedSearch) {
     await fetch(`/api/searches/${search.id}`, {
@@ -93,42 +86,36 @@ export default function SearchesPage() {
   }
 
   async function handleRun(searchId?: string) {
-    setRunLogs([]);
-    setRunStats(null);
-    setRunError(null);
-    setRunStatus("running");
-    setShowProgress(true);
+    setTriggerError(null);
+    setQueuedCount(0);
+    setTriggerState("queuing");
+    setShowTrigger(true);
 
     try {
-      const res = await fetch("/api/scrape", {
+      const res = await fetch("/api/scrape/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(searchId ? { searchId } : {}),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
-        setRunError(data.error || "Scrape failed");
-        setRunStatus("error");
+        setTriggerError(data.error || "Failed to queue scrape");
+        setTriggerState("error");
         return;
       }
 
-      const status = await readSSEStream(res, {
-        onLog: (msg) => setRunLogs((prev) => [...prev, msg]),
-        onComplete: (event) => { setRunStats(event.stats); setRunStatus("completed"); },
-        onError: (msg) => { setRunError(msg); setRunStatus("error"); },
-      });
-
-      setRunStatus(status);
+      setQueuedCount(data.count ?? 0);
+      setTriggerState("queued");
     } catch (err: any) {
-      setRunError(err.message);
-      setRunStatus("error");
+      setTriggerError(err.message);
+      setTriggerState("error");
     }
   }
 
-  function closeProgress() {
-    setShowProgress(false);
-    setRunStatus("idle");
+  function closeTrigger() {
+    setShowTrigger(false);
+    setTriggerState("idle");
   }
 
   return (
@@ -147,7 +134,7 @@ export default function SearchesPage() {
               variant="outline"
               size="sm"
               onClick={() => handleRun()}
-              disabled={runStatus === "running" || searches.filter((s) => s.is_active).length === 0}
+              disabled={triggerState === "queuing" || searches.filter((s) => s.is_active).length === 0}
             >
               <PlayCircle className="h-4 w-4 mr-2" />
               Run All
@@ -251,7 +238,7 @@ export default function SearchesPage() {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => handleRun(search.id)}
-                          disabled={runStatus === "running"}
+                          disabled={triggerState === "queuing"}
                           title="Run Now"
                         >
                           <Play className="h-3.5 w-3.5" />
@@ -335,95 +322,52 @@ export default function SearchesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Progress modal */}
-      <Dialog open={showProgress} onOpenChange={() => {}}>
-        <DialogContent className="max-w-2xl" onClose={runStatus !== "running" ? closeProgress : undefined}>
+      {/* Queued confirmation modal */}
+      <Dialog open={showTrigger} onOpenChange={() => {}}>
+        <DialogContent className="max-w-md" onClose={triggerState !== "queuing" ? closeTrigger : undefined}>
           <DialogHeader>
             <div className="flex items-center gap-3">
-              {runStatus === "running" && (
+              {triggerState === "queuing" && (
                 <Loader2 className="h-5 w-5 text-primary animate-spin" />
               )}
-              {runStatus === "completed" && (
+              {triggerState === "queued" && (
                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
               )}
-              {runStatus === "error" && (
+              {triggerState === "error" && (
                 <XCircle className="h-5 w-5 text-destructive" />
               )}
               <DialogTitle>
-                {runStatus === "running"
-                  ? "Pipeline Running..."
-                  : runStatus === "completed"
-                  ? "Pipeline Complete"
-                  : runStatus === "error"
-                  ? "Pipeline Failed"
-                  : "Pipeline"}
+                {triggerState === "queuing"
+                  ? "Queueing..."
+                  : triggerState === "queued"
+                  ? "Scrape Queued"
+                  : "Couldn't Queue"}
               </DialogTitle>
             </div>
           </DialogHeader>
 
-          {runStats && (
-            <div className="grid grid-cols-4 gap-3 mt-2">
-              <div className="rounded-lg bg-muted p-3 text-center">
-                <div className="text-xl font-bold">{runStats.jobsFound}</div>
-                <div className="text-xs text-muted-foreground">Found</div>
-              </div>
-              <div className="rounded-lg bg-muted p-3 text-center">
-                <div className="text-xl font-bold">{runStats.jobsFiltered}</div>
-                <div className="text-xs text-muted-foreground">After Filters</div>
-              </div>
-              <div className="rounded-lg bg-muted p-3 text-center">
-                <div className="text-xl font-bold">{runStats.jobsEvaluated}</div>
-                <div className="text-xs text-muted-foreground">Evaluated</div>
-              </div>
-              <div className="rounded-lg bg-muted p-3 text-center">
-                <div className="text-xl font-bold">
-                  {runStats.jobsSkippedDuplicate +
-                    runStats.jobsSkippedPublisher +
-                    runStats.jobsSkippedComp +
-                    runStats.jobsSkippedLocationDup}
-                </div>
-                <div className="text-xs text-muted-foreground">Skipped</div>
-              </div>
-            </div>
+          {triggerState === "queued" && (
+            <DialogDescription className="mt-1">
+              {queuedCount} search{queuedCount !== 1 ? "es" : ""} queued. They run
+              in the background — each search processes independently, and new
+              matches appear in Jobs as they finish. Track live status in Run Logs.
+            </DialogDescription>
           )}
 
-          {runError && (
+          {triggerError && (
             <div className="rounded-lg bg-destructive/10 text-destructive text-sm p-3 mt-2">
-              {runError}
+              {triggerError}
             </div>
           )}
 
-          <div className="bg-zinc-950 rounded-lg p-4 mt-2 max-h-[400px] overflow-y-auto font-mono text-xs">
-            {runLogs.length === 0 && runStatus === "running" && (
-              <span className="text-zinc-500">Waiting for pipeline to start...</span>
-            )}
-            {runLogs.map((line, i) => {
-              let color = "text-zinc-300";
-              if (line.includes("✓")) color = "text-emerald-400";
-              else if (line.includes("✗") || line.includes("ERROR")) color = "text-red-400";
-              else if (line.includes("Blocked") || line.includes("Comp filter")) color = "text-amber-400";
-              else if (line.includes("Pipeline complete")) color = "text-emerald-400 font-semibold";
-              else if (line.includes("Pipeline FAILED")) color = "text-red-400 font-semibold";
-              else if (line.startsWith("Scraping") || line.startsWith("Fetching") || line.startsWith("Evaluating")) color = "text-blue-400";
-
-              return (
-                <div key={i} className={`${color} leading-5`}>
-                  {line}
-                </div>
-              );
-            })}
-            <div ref={logEndRef} />
-          </div>
-
-          {runStatus !== "running" && (
-            <div className="flex justify-end mt-2">
-              {runStatus === "completed" ? (
-                <Button onClick={() => { closeProgress(); router.push("/jobs"); }}>
-                  View Jobs
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={closeProgress}>
-                  Close
+          {triggerState !== "queuing" && (
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={closeTrigger}>
+                Close
+              </Button>
+              {triggerState === "queued" && (
+                <Button onClick={() => { closeTrigger(); router.push("/admin/run-logs"); }}>
+                  View Run Logs
                 </Button>
               )}
             </div>

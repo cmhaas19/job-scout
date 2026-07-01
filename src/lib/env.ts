@@ -28,6 +28,10 @@ const serverSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1),
   CRON_SECRET: z.string().min(1),
   RESEND_API_KEY: z.string().min(1).optional(),
+  // Set by the Vercel↔Inngest integration in production; unset locally where
+  // the inngest-cli dev server handles signing.
+  INNGEST_EVENT_KEY: z.string().min(1).optional(),
+  INNGEST_SIGNING_KEY: z.string().min(1).optional(),
 });
 
 type PublicEnv = z.infer<typeof publicSchema>;
@@ -61,6 +65,8 @@ export function serverEnv(): ServerEnv {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     CRON_SECRET: process.env.CRON_SECRET,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
+    INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY,
+    INNGEST_SIGNING_KEY: process.env.INNGEST_SIGNING_KEY,
   });
   if (!parsed.success) fail("server", parsed.error);
   serverCache = parsed.data;

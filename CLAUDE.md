@@ -41,8 +41,8 @@ Tests use **Vitest**; specs live next to the code as `src/lib/**/*.test.ts`.
 
 ### Core Business Logic
 
-- `src/lib/evaluator.ts` — Claude API integration. Loads prompt from `system_prompts` table, interpolates threshold variables, includes user's rated jobs as calibration data. Returns scores across 6 weighted categories (total 100 points) with fit categories `STRONG FIT`, `GOOD FIT`, `BORDERLINE`, `WEAK FIT`.
-- `src/lib/scraper/pipeline.ts` — Main orchestration. For each active search: builds LinkedIn URL, fetches/parses results, filters (blocked publishers, salary thresholds, duplicates), fetches full descriptions, evaluates with Claude, saves to DB. Respects `delay_between_fetches_ms` and `eval_concurrency` config. Writes a heartbeat to `run_logs` as it progresses (see stale-run handling below).
+- `src/lib/evaluator.ts` — Claude API integration. `buildEvalContext(userId, resumeText)` assembles the system prompt (threshold interpolation + rated-jobs calibration) + model + prompt version **once per run**; `evaluateJobWithContext(ctx, …)` runs the single Claude call reusing it — with Anthropic prompt caching on the constant system+resume, and SDK `maxRetries` for 429/529 overloads. `evaluateJob(...)` is the one-shot wrapper (builds context inline) kept for isolated re-evaluations. Returns scores across 6 weighted categories (total 100 points) with fit categories `STRONG FIT`, `GOOD FIT`, `BORDERLINE`, `WEAK FIT`.
+- `src/lib/scraper/pipeline.ts` — Decomposed into `scrapeAndFilter(userId, searchId, config)` (scrape → dedup vs existing → publisher/comp/location filters → builds eval context) and `processJobBatch(userId, jobs, evalContext, config)` (fetch descriptions + evaluate + upsert a batch, returns a stats delta; `mergeStats` accumulates). `runPipeline(userId, searchIds?, runLogId?, onLog?)` composes them sequentially for the non-Inngest callers (admin rerun, cron backstop, on-demand SSE) and keeps the heartbeat/cancel behavior. The **Inngest `scrapeSearch`** orchestrator instead runs `scrape-filter` once then each `scrape_batch_size`-sized batch as its own `step.run` — a fresh 300s budget per batch, so a search can never time out. Respects `delay_between_fetches_ms`, `fetch_concurrency`, `eval_concurrency`, `scrape_batch_size`.
 - `src/lib/scraper/parser.ts` — HTML parsing of LinkedIn search results and job detail pages.
 - `src/lib/scraper/url-builder.ts` — Maps search parameters to LinkedIn URL query params.
 - `src/lib/scraper/salary.ts` — Salary extraction from job descriptions.
@@ -87,9 +87,21 @@ Stored in `system_config` table, read via `src/lib/config.ts` with defaults: `bl
 
 Scrape progress and re-evaluation use Server-Sent Events (SSE) — see `/api/scrape/status/[runId]` and `/api/jobs/re-evaluate`.
 
+### Scheduling (Inngest)
+
+Scheduled scrapes run on **Inngest** (`src/lib/inngest/`), served at `/api/inngest`. This replaced the Vercel Hobby cron, which was limited to one run/day and shared a single 300s function budget across every user's whole pipeline (so multi-search runs timed out).
+
+- **`scheduledScrape`** — cron `TZ=America/Los_Angeles 0 6,12,17 * * *` (6am/noon/5pm Pacific, DST-aware). Sweeps stale runs, then dispatches one `scrape/user.requested` per user with a resume + active searches.
+- **`scrapeUser`** — event `scrape/user.requested` (`{ userId, searchIds?, trigger }`). Fans out one `scrapeSearch` per active search (or the given subset) and sends a single digest once they all finish.
+- **`scrapeSearch`** — event `scrape/search.requested`; a durable orchestrator for one search under its own `run_logs` row: `start → config → scrape-filter → checkpoint/batch pairs → finalize`. Each `batch-N` (`scrape_batch_size` jobs) is its own `step.run` with a fresh 300s budget + independent retry, and completed steps are memoized, so a search can process arbitrarily many jobs without any single invocation timing out. `checkpoint-N` writes a heartbeat + honors admin cancel between batches. run_log lifecycle helpers live in [src/lib/scraper/run.ts](src/lib/scraper/run.ts) (`createRunLog` / `writeRunLogProgress` / `finalizeRunLog`). `concurrency: { limit: 2 }` keeps LinkedIn load gentle.
+
+**Manual runs** (the Run All / per-search play buttons on the Searches page) also go through Inngest: `POST /api/scrape/trigger` rate-limits (cooldown derived from `max_refreshes_per_hour`) then emits `scrape/user.requested` with `trigger: "on_demand"` and returns immediately — progress is tracked via Run Logs, not a live SSE stream. The old inline SSE route (`/api/scrape`) is no longer used by the UI.
+
+`vercel.json` no longer defines a cron. `/api/scrape/cron` remains as a manual/admin backstop but is no longer scheduled.
+
 ### Deployment
 
-Vercel with cron configured in `vercel.json` (daily at 14:00 UTC, hits `/api/scrape/cron`). Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY` (email digests). Because scrapes run inside time-limited serverless functions, long runs can be killed mid-flight — hence the heartbeat/`failStaleRuns` self-healing and the admin run-log cancel/rerun controls.
+Vercel. Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY` (email digests), `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (set by the Vercel↔Inngest integration; the local `inngest-cli dev` server needs neither). Because scrapes run inside time-limited serverless functions, long runs can be killed mid-flight — hence the heartbeat/`failStaleRuns` self-healing and the admin run-log cancel/rerun controls.
 
 ## Conventions
 

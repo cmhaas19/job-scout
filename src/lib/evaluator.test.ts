@@ -119,8 +119,15 @@ describe("evaluateJob", () => {
 
     expect(result).toEqual({ ...VALID_EVAL, prompt_version: 3 });
 
-    // The system prompt had its threshold tokens substituted and calibration appended.
-    const systemPrompt = createMock.mock.calls[0][0].system as string;
+    // The system prompt is a cache-controlled text block with thresholds
+    // substituted and calibration appended.
+    const systemBlocks = createMock.mock.calls[0][0].system as {
+      type: string;
+      text: string;
+      cache_control?: { type: string };
+    }[];
+    const systemPrompt = systemBlocks[0].text;
+    expect(systemBlocks[0].cache_control).toEqual({ type: "ephemeral" });
     expect(systemPrompt).toContain("Strong=85");
     expect(systemPrompt).toContain("MinComp=300000");
     expect(systemPrompt).toContain("CALIBRATION FROM USER FEEDBACK");
