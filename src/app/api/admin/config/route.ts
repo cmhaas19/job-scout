@@ -1,31 +1,18 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiAdmin } from "@/lib/api-auth";
+import { dbError } from "@/lib/api-response";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const gate = await requireApiAdmin();
+  if (gate instanceof Response) return gate;
+  const { supabase } = gate;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check admin
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("system_config")
     .select("*")
     .order("key");
+
+  if (error) return dbError("admin.config.list", error, "Failed to load config");
 
   return NextResponse.json(data || []);
 }

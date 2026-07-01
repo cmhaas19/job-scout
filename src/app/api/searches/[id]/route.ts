@@ -1,47 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
+import { dbError, serverError } from "@/lib/api-response";
+import { parseBody, savedSearchSchema } from "@/lib/validation";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { supabase, user } = gate;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const parsed = await parseBody(request, savedSearchSchema);
+    if ("error" in parsed) return parsed.error;
+    const body = parsed.data;
+
+    const { data, error } = await supabase
+      .from("saved_searches")
+      .update({
+        name: body.name,
+        keyword: body.keyword,
+        location: body.location || null,
+        date_since_posted: body.date_since_posted,
+        job_type: body.job_type || null,
+        remote_filter: body.remote_filter || null,
+        experience_level: body.experience_level,
+        result_limit: body.result_limit,
+        sort_by: body.sort_by,
+        is_active: body.is_active,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .select()
+      .single();
+
+    if (error) return dbError("searches.update", error, "Failed to update search");
+
+    return NextResponse.json(data);
+  } catch (err) {
+    return serverError("searches.update", err);
   }
-
-  const body = await request.json();
-
-  const { data, error } = await supabase
-    .from("saved_searches")
-    .update({
-      name: body.name,
-      keyword: body.keyword,
-      location: body.location || null,
-      date_since_posted: body.date_since_posted,
-      job_type: body.job_type || null,
-      remote_filter: body.remote_filter || null,
-      experience_level: body.experience_level || [],
-      result_limit: body.result_limit || 100,
-      sort_by: body.sort_by || "relevant",
-      is_active: body.is_active,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("user_id", user.id)
-    .select()
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }
 
 export async function DELETE(
@@ -49,14 +50,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { supabase, user } = gate;
 
   const { error } = await supabase
     .from("saved_searches")
@@ -64,9 +60,7 @@ export async function DELETE(
     .eq("id", id)
     .eq("user_id", user.id);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return dbError("searches.delete", error, "Failed to delete search");
 
   return NextResponse.json({ success: true });
 }

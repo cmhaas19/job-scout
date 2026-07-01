@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/server";
 import { runPipeline } from "@/lib/scraper/pipeline";
 import { failStaleRuns } from "@/lib/scraper/stale-runs";
 import { sendDigestEmail } from "@/lib/email";
+import { serverEnv } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 export const maxDuration = 300;
 
@@ -12,12 +15,21 @@ function statusFromPhase(phase: string): "completed" | "failed" | "cancelled" {
   return "completed";
 }
 
-function isAuthorized(request: NextRequest): boolean {
-  // Vercel Cron sends the secret as Authorization: Bearer <CRON_SECRET>
-  const authHeader = request.headers.get("authorization");
-  if (authHeader === `Bearer ${process.env.CRON_SECRET}`) return true;
+/** Constant-time string comparison that never throws on length mismatch. */
+function safeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
 
-  return false;
+function isAuthorized(request: NextRequest): boolean {
+  // Vercel Cron sends the secret as Authorization: Bearer <CRON_SECRET>.
+  // serverEnv() guarantees CRON_SECRET is a non-empty string, so a missing
+  // secret can never collapse into an accidental "Bearer undefined" match.
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) return false;
+  return safeEqual(authHeader, `Bearer ${serverEnv().CRON_SECRET}`);
 }
 
 // Vercel Cron sends GET requests
@@ -94,7 +106,7 @@ async function handleCron(request: NextRequest) {
         try {
           await sendDigestEmail(user.id, runLog!.started_at, "scheduled");
         } catch (emailErr: any) {
-          console.error("[cron] Digest email failed for user:", user.id, emailErr.message);
+          logger.error("cron", "digest email failed", { userId: user.id, error: emailErr?.message });
         }
       }
 

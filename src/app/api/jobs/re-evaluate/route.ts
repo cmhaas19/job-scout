@@ -1,28 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
+import { apiError } from "@/lib/api-response";
+import { parseBody, reEvaluateSchema } from "@/lib/validation";
 import { evaluateJob } from "@/lib/evaluator";
 import { getConfigNumber } from "@/lib/config";
 
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { user } = gate;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const parsed = await parseBody(request, reEvaluateSchema);
+  if ("error" in parsed) return parsed.error;
+  const { jobIds } = parsed.data;
 
-  const body = await request.json();
-  const { jobIds } = body as { jobIds?: string[] };
-
-  if (!jobIds || jobIds.length === 0) {
-    return NextResponse.json({ error: "No job IDs provided" }, { status: 400 });
-  }
-
+  // Service client: the evaluation loop below runs in a detached background
+  // task after the SSE response starts, so it can't rely on the request-scoped
+  // cookie session. Ownership is enforced by the explicit user_id filters.
   const serviceClient = await createServiceClient();
 
   // Get user's resume
@@ -33,13 +30,12 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (!profile?.resume_text) {
-    return NextResponse.json(
-      { error: "No resume uploaded. Upload a resume before re-evaluating." },
-      { status: 400 }
-    );
+    return apiError("No resume uploaded. Upload a resume before re-evaluating.", 400);
   }
+  // Capture as non-null so the background closure below keeps the narrowed type.
+  const resumeText = profile.resume_text;
 
-  // Get the jobs
+  // Get the jobs (scoped to this user)
   const { data: jobs } = await serviceClient
     .from("job_evaluations")
     .select("id, company, position, description")
@@ -47,7 +43,7 @@ export async function POST(request: NextRequest) {
     .in("id", jobIds);
 
   if (!jobs || jobs.length === 0) {
-    return NextResponse.json({ error: "No matching jobs found" }, { status: 404 });
+    return apiError("No matching jobs found", 404);
   }
 
   // Stream progress via SSE
@@ -87,10 +83,10 @@ export async function POST(request: NextRequest) {
           try {
             const result = await evaluateJob(
               user.id,
-              profile.resume_text,
+              resumeText,
               job.company,
               job.position,
-              job.description
+              job.description! // evalJobs filtered out null descriptions above
             );
 
             if (result) {

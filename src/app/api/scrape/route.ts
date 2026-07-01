@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
+import { apiError } from "@/lib/api-response";
+import { logger } from "@/lib/logger";
 import { getConfigNumber } from "@/lib/config";
 import { runPipeline } from "@/lib/scraper/pipeline";
 import { failStaleRuns } from "@/lib/scraper/stale-runs";
@@ -15,14 +17,9 @@ function statusFromPhase(phase: string): "completed" | "failed" | "cancelled" {
 export const maxDuration = 300; // 5 minutes for Vercel
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { user } = gate;
 
   // Rate limit check
   const maxRefreshes = (await getConfigNumber("max_refreshes_per_hour")) ?? 2;
@@ -40,11 +37,9 @@ export async function POST(request: NextRequest) {
     .gte("started_at", oneHourAgo);
 
   if ((count ?? 0) >= maxRefreshes) {
-    return NextResponse.json(
-      {
-        error: `Rate limit exceeded. Maximum ${maxRefreshes} on-demand scrapes per hour. Try again later.`,
-      },
-      { status: 429 }
+    return apiError(
+      `Rate limit exceeded. Maximum ${maxRefreshes} on-demand scrapes per hour. Try again later.`,
+      429
     );
   }
 
@@ -67,10 +62,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (!runLog) {
-    return NextResponse.json(
-      { error: "Failed to create run log" },
-      { status: 500 }
-    );
+    return apiError("Failed to create run log", 500);
   }
 
   // Stream progress via SSE
@@ -114,7 +106,11 @@ export async function POST(request: NextRequest) {
         try {
           await sendDigestEmail(user.id, runLog.started_at, "on_demand");
           sendEvent("digest", { sent: true });
-        } catch (_) {
+        } catch (emailErr: any) {
+          logger.error("scrape.digest", "digest email failed", {
+            userId: user.id,
+            error: emailErr?.message,
+          });
           sendEvent("digest", { sent: false });
         }
       }

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { requireApiAdmin } from "@/lib/api-auth";
+import { apiError } from "@/lib/api-response";
+import { logger } from "@/lib/logger";
 import { runPipeline } from "@/lib/scraper/pipeline";
 import { sendDigestEmail } from "@/lib/email";
 
@@ -16,24 +19,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const gate = await requireApiAdmin();
+  if (gate instanceof Response) return gate;
 
   const serviceClient = await createServiceClient();
 
@@ -44,9 +31,7 @@ export async function POST(
     .eq("id", id)
     .single();
 
-  if (!source) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
-  }
+  if (!source) return apiError("Run not found", 404);
 
   const { data: runLog } = await serviceClient
     .from("run_logs")
@@ -63,7 +48,7 @@ export async function POST(
     .single();
 
   if (!runLog) {
-    return NextResponse.json({ error: "Failed to create run log" }, { status: 500 });
+    return apiError("Failed to create run log", 500);
   }
 
   // Background task (same fire-and-forget pattern as cron); admin action, so the
@@ -90,8 +75,11 @@ export async function POST(
       if (finalStatus === "completed") {
         try {
           await sendDigestEmail(source.user_id, runLog.started_at, "on_demand");
-        } catch (_) {
-          /* ignore */
+        } catch (emailErr: any) {
+          logger.error("admin.runLogs.rerun", "digest email failed", {
+            userId: source.user_id,
+            error: emailErr?.message,
+          });
         }
       }
     } catch (err: any) {

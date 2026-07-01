@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
+import { dbError } from "@/lib/api-response";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { supabase, user } = gate;
 
   const { data, error } = await supabase
     .from("run_logs")
@@ -18,9 +14,7 @@ export async function GET() {
     .order("started_at", { ascending: false })
     .limit(50);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return dbError("runLogs.list", error, "Failed to load run logs");
 
   return NextResponse.json(data || []);
 }

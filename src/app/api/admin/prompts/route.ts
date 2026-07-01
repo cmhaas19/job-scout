@@ -1,26 +1,15 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiAdmin } from "@/lib/api-auth";
+import { dbError } from "@/lib/api-response";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const gate = await requireApiAdmin();
+  if (gate instanceof Response) return gate;
+  const { supabase } = gate;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { data, error } = await supabase.from("system_prompts").select("*");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  if (error) return dbError("admin.prompts.list", error, "Failed to load prompts");
 
-  if (profile?.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const { data } = await supabase.from("system_prompts").select("*");
   return NextResponse.json(data || []);
 }

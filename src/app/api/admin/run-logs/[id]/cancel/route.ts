@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { requireApiAdmin } from "@/lib/api-auth";
+import { apiError } from "@/lib/api-response";
 import { STALE_RUN_THRESHOLD_MS } from "@/lib/constants";
 
 export async function POST(
@@ -7,24 +9,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const gate = await requireApiAdmin();
+  if (gate instanceof Response) return gate;
 
   const serviceClient = await createServiceClient();
 
@@ -34,15 +20,10 @@ export async function POST(
     .eq("id", id)
     .single();
 
-  if (!run) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
-  }
+  if (!run) return apiError("Run not found", 404);
 
   if (run.status !== "running") {
-    return NextResponse.json(
-      { error: `Run is not running (status: ${run.status})` },
-      { status: 400 }
-    );
+    return apiError(`Run is not running (status: ${run.status})`, 400);
   }
 
   // Always request cancellation so a still-alive pipeline self-terminates at its

@@ -22,8 +22,8 @@ export interface EvalResult {
 interface RatedJob {
   company: string;
   position: string;
-  total_score: number;
-  fit_category: string;
+  total_score: number | null;
+  fit_category: string | null;
   user_rating: number;
   user_notes: string | null;
 }
@@ -94,8 +94,9 @@ async function buildSystemPrompt(userId: string): Promise<string> {
     .limit(20);
 
   if (ratedJobs && ratedJobs.length > 0) {
-    const calibrationEntries = ratedJobs
-      .map((job: RatedJob) => {
+    // The `.not(user_rating, is, null)` filter guarantees user_rating is present.
+    const calibrationEntries = (ratedJobs as RatedJob[])
+      .map((job) => {
         const starLabel = STAR_LABELS[job.user_rating] || "Unknown";
         return `- ${job.company} — ${job.position}
   AI Score: ${job.total_score}% (${job.fit_category})
@@ -159,7 +160,7 @@ ${jobDescription}`;
   return { ...result, prompt_version: promptVersion };
 }
 
-function parseEvalResponse(text: string): Omit<EvalResult, "prompt_version"> | null {
+export function parseEvalResponse(text: string): Omit<EvalResult, "prompt_version"> | null {
   let cleaned = text.trim();
 
   if (cleaned.startsWith("```")) {
