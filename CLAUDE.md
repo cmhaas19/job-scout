@@ -9,12 +9,17 @@ Job Scout is an AI-powered job fit evaluation platform. Users define LinkedIn jo
 ## Commands
 
 ```bash
-npm run dev      # Start Next.js dev server on :3000
-npm run build    # Production build
-npm run lint     # ESLint
+npm run dev            # Start Next.js dev server on :3210
+npm run build          # Production build
+npm run lint           # ESLint
+npm test               # Run Vitest once (also: test:watch, test:coverage)
+
+npm run db:new <name>  # Create a timestamped Supabase migration
+npm run db:push        # Apply migrations to the linked project
+npm run db:types       # Regenerate src/lib/database.types.ts
 ```
 
-No test framework is configured.
+Tests use **Vitest**; specs live next to the code as `src/lib/**/*.test.ts`.
 
 ## Tech Stack
 
