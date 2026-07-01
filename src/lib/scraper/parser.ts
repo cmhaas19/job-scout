@@ -16,7 +16,7 @@ export interface JobCard {
  * Parse a relative time string like "2 days ago", "3 hours ago", "1 week ago"
  * into an ISO datetime string. Returns null if unparseable.
  */
-function parseAgoTime(agoTime: string): string | null {
+export function parseAgoTime(agoTime: string): string | null {
   if (!agoTime) return null;
 
   const match = agoTime.match(/(\d+)\s*(second|minute|hour|day|week|month)s?\s*ago/i);
@@ -137,7 +137,7 @@ const SIDEBAR_MARKERS = [
   "More jobs",
 ];
 
-function htmlToMarkdown(html: string): string {
+export function htmlToMarkdown(html: string): string {
   const $ = cheerio.load(html);
 
   function walk(node: any): string {

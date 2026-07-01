@@ -4,6 +4,8 @@ import { parseSearchResults, fetchPage, fetchJobDescription, type JobCard } from
 import { parseTopSalary } from "./salary";
 import { evaluateJob } from "@/lib/evaluator";
 import { getAllConfig } from "@/lib/config";
+import { logger } from "@/lib/logger";
+import type { Json } from "@/lib/database.types";
 
 interface PipelineStats {
   phase: string;
@@ -18,6 +20,9 @@ interface PipelineStats {
   jobsEvaluated: number;
   jobsFailed: number;
   errors: string[];
+  // Written to the run_logs.stats JSON column; index signature keeps it
+  // assignable to Json. All fields above are JSON-serializable.
+  [key: string]: Json;
 }
 
 interface SavedSearch {
@@ -44,8 +49,16 @@ export class CancelledError extends Error {
 }
 
 function defaultLog(msg: string) {
-  console.log(`[pipeline] ${msg}`);
+  logger.info("pipeline", msg);
 }
+
+// A scraped job card, augmented with its originating search and the job
+// description fetched later in the pipeline (attached transiently before eval).
+type ScrapedJob = JobCard & {
+  searchId: string;
+  searchName: string;
+  _description?: string;
+};
 
 export async function runPipeline(
   userId: string,
@@ -142,7 +155,7 @@ export async function runPipeline(
     stats.phase = "scraping";
     await updateRunLog();
 
-    const allJobs: (JobCard & { searchId: string; searchName: string })[] = [];
+    const allJobs: ScrapedJob[] = [];
 
     // Stable dedup key: the numeric LinkedIn job ID when present, else the
     // normalized URL (covers imported / non-LinkedIn jobs).
@@ -291,7 +304,14 @@ export async function runPipeline(
               },
               { onConflict: "user_id,job_url" }
             )
-            .then(() => {});
+            .then(({ error }) => {
+              if (error) {
+                logger.error("pipeline", "failed to record skipped (publisher) job", {
+                  jobUrl: job.jobUrl,
+                  error: error.message,
+                });
+              }
+            });
           return false;
         }
       }
@@ -324,7 +344,14 @@ export async function runPipeline(
             },
             { onConflict: "user_id,job_url" }
           )
-          .then(() => {});
+          .then(({ error }) => {
+            if (error) {
+              logger.error("pipeline", "failed to record skipped (comp) job", {
+                jobUrl: job.jobUrl,
+                error: error.message,
+              });
+            }
+          });
         return false;
       }
       return true;
@@ -377,7 +404,7 @@ export async function runPipeline(
           continue;
         }
         if (description) {
-          (job as any)._description = description;
+          job._description = description;
           stats.jobsFetched++;
           log(`    ✓ ${job.company}: ${description.length} chars`);
         } else {
@@ -428,7 +455,7 @@ export async function runPipeline(
         log(`  Batch ${batchNum}: evaluating ${batch.length} jobs...`);
 
         const promises = batch.map(async (job) => {
-          const description = (job as any)._description;
+          const description = job._description;
           if (!description) return;
 
           try {
@@ -507,7 +534,7 @@ export async function runPipeline(
     } else if (!resumeText) {
       log("No resume — storing jobs unevaluated");
       for (const job of filteredJobs) {
-        const description = (job as any)._description;
+        const description = job._description;
         await supabase.from("job_evaluations").upsert(
           {
             user_id: userId,

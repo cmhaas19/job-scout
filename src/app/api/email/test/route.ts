@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
+import { apiError } from "@/lib/api-response";
 import { getConfigString } from "@/lib/config";
 import { buildDigestHtml } from "@/lib/email";
 
@@ -137,15 +138,13 @@ export async function GET(request: NextRequest) {
   const html = buildDigestHtml(name, newJobs, top10);
 
   if (mode === "send") {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const gate = await requireApiUser();
+    if (gate instanceof Response) return gate;
+    const { user } = gate;
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: "RESEND_API_KEY not set" }, { status: 500 });
+      return apiError("RESEND_API_KEY not set", 500);
     }
 
     const fromAddress = await getConfigString("email_from_address");

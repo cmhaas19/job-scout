@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getConfigString } from "@/lib/config";
 import { FIT_CATEGORIES } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 
 const FIT_HEX: Record<string, string> = {
   "STRONG FIT": "#059669",
@@ -26,11 +27,11 @@ export async function sendDigestEmail(
   runStartedAt: string,
   trigger: "scheduled" | "on_demand"
 ): Promise<void> {
-  console.log(`[email] Starting digest for user=${userId} trigger=${trigger} runStartedAt=${runStartedAt}`);
+  logger.info("email", "starting digest", { userId, trigger, runStartedAt });
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("[email] RESEND_API_KEY not set, skipping digest");
+    logger.warn("email", "RESEND_API_KEY not set, skipping digest", { userId });
     return;
   }
 
@@ -44,21 +45,21 @@ export async function sendDigestEmail(
     .single();
 
   if (profileError) {
-    console.error("[email] Failed to load profile:", profileError.message);
+    logger.error("email", "failed to load profile", { userId, error: profileError.message });
     return;
   }
 
   if (!profile) {
-    console.warn("[email] No profile found for user:", userId);
+    logger.warn("email", "no profile found for user", { userId });
     return;
   }
 
   if (!profile.email_digest_enabled) {
-    console.log("[email] Digest disabled for user:", profile.email);
+    logger.info("email", "digest disabled for user", { email: profile.email });
     return;
   }
 
-  console.log(`[email] Sending digest to ${profile.email}`);
+  logger.info("email", "sending digest", { email: profile.email });
 
   // New jobs from this run
   const { data: newJobs, error: newJobsError } = await supabase
@@ -73,15 +74,15 @@ export async function sendDigestEmail(
     .order("total_score", { ascending: false });
 
   if (newJobsError) {
-    console.error("[email] Failed to query new jobs:", newJobsError.message);
+    logger.error("email", "failed to query new jobs", { userId, error: newJobsError.message });
   }
 
   const jobs: DigestJob[] = newJobs ?? [];
-  console.log(`[email] New jobs from this run: ${jobs.length}`);
+  logger.info("email", "new jobs from this run", { count: jobs.length });
 
   // On-demand: skip if no new jobs
   if (trigger === "on_demand" && jobs.length === 0) {
-    console.log("[email] On-demand with no new jobs, skipping digest");
+    logger.info("email", "on-demand with no new jobs, skipping digest", { userId });
     return;
   }
 
@@ -102,11 +103,11 @@ export async function sendDigestEmail(
     .limit(10);
 
   if (topJobsError) {
-    console.error("[email] Failed to query top jobs:", topJobsError.message);
+    logger.error("email", "failed to query top jobs", { userId, error: topJobsError.message });
   }
 
   const top10: DigestJob[] = topJobs ?? [];
-  console.log(`[email] Top 10 this week: ${top10.length}`);
+  logger.info("email", "top 10 this week", { count: top10.length });
 
   const fromAddress = await getConfigString("email_from_address");
   const subject =
@@ -114,7 +115,7 @@ export async function sendDigestEmail(
       ? `Job Scout: ${jobs.length} new job${jobs.length === 1 ? "" : "s"} found`
       : "Job Scout: Your weekly top jobs";
 
-  console.log(`[email] Sending from="${fromAddress}" to="${profile.email}" subject="${subject}"`);
+  logger.info("email", "sending", { from: fromAddress, to: profile.email, subject });
 
   const html = buildDigestHtml(profile.full_name, jobs, top10);
 
@@ -127,11 +128,11 @@ export async function sendDigestEmail(
   });
 
   if (sendError) {
-    console.error("[email] Resend API error:", sendError);
+    logger.error("email", "Resend API error", { error: sendError });
     throw sendError;
   }
 
-  console.log(`[email] Sent successfully, id=${sendResult?.id}`);
+  logger.info("email", "sent successfully", { id: sendResult?.id });
 }
 
 // ---------------------------------------------------------------------------

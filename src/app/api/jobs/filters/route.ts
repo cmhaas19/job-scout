@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { supabase, user } = gate;
 
   // Fetch distinct values for filter dropdowns
   const [companiesRes, locationsRes, searchesRes, versionsRes] = await Promise.all([

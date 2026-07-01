@@ -81,13 +81,30 @@ CRON_SECRET=any-random-string
 
 ### 3. Set up the database
 
-Run the contents of `supabase/migration.sql` in your Supabase SQL Editor. This creates all tables, RLS policies, storage bucket, triggers, and seed data.
+Schema is managed with the [Supabase CLI](https://supabase.com/docs/guides/cli) (installed as a dev dependency), so migrations live in `supabase/migrations/` and are applied to the linked project — no more pasting SQL into the dashboard.
 
-Then run the fix scripts:
+Link the project once (needs your Supabase access token + database password when prompted):
 
-- `supabase/fix-rls.sql` - Fixes infinite recursion in admin RLS policies
-- `supabase/fix-date-posted.sql` - Changes `date_posted` to `TIMESTAMPTZ`
-- `supabase/fix-prompt-version.sql` - Adds prompt version tracking
+```bash
+npx supabase link --project-ref <your-project-ref>
+```
+
+Existing database (schema already lives in Supabase — the normal case here): you don't need a baseline. The remote's migration history is empty, so new migrations you create apply cleanly on top of the current schema. Just start using the day-to-day loop below. The pre-CLI schema is preserved for reference in `supabase/legacy/`.
+
+> **Docker note:** `db push`, `migration new/repair/list`, and `gen types` connect directly to the remote and need **no Docker**. Only `db pull`, `db diff`, and `db dump` require Docker (they provision a local shadow Postgres). If you have Docker Desktop, `npm run db:pull` will snapshot the remote into a baseline migration in one step; otherwise skip it.
+
+Fresh database (brand-new Supabase project): apply the reference schema in `supabase/legacy/migration.sql` (plus the `fix-*`/`add-*` patches, in the order listed in `supabase/legacy/README.md`) once via the dashboard SQL editor, then use the CLI for everything after.
+
+Day-to-day schema changes:
+
+```bash
+npm run db:new <name>  # create a new timestamped migration in supabase/migrations/
+#   ...edit the generated .sql file...
+npm run db:push        # apply it to the linked database
+npm run db:types       # regenerate src/lib/database.types.ts
+```
+
+The original hand-applied SQL (pre-CLI) is archived in `supabase/legacy/` for reference only.
 
 ### 4. Create the first admin
 
@@ -153,9 +170,22 @@ src/
     auth.ts           Server-side auth helpers
     supabase/         Supabase client (browser, server, middleware)
 supabase/
-  migration.sql       Full database schema, RLS, triggers, seed data
-  fix-*.sql           Incremental migration fixes
+  config.toml         Supabase CLI configuration
+  migrations/         CLI-managed, timestamped schema migrations
+  legacy/             Archived pre-CLI SQL (reference only)
 ```
+
+## Testing
+
+Unit tests run on [Vitest](https://vitest.dev):
+
+```bash
+npm test               # run once
+npm run test:watch     # watch mode
+npm run test:coverage  # with coverage
+```
+
+Tests live next to the code they cover as `*.test.ts` (see `src/lib/`).
 
 ## License
 

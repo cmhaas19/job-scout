@@ -35,7 +35,7 @@ export function parseTopSalary(salary: string | null | undefined): number | null
   return null;
 }
 
-function normalizeDollarAmount(raw: string): number | null {
+export function normalizeDollarAmount(raw: string): number | null {
   // Strip everything except digits, '.', 'k'/'K'
   let cleaned = raw.replace(/[^0-9.kK]/g, "");
   const hasK = /[kK]/.test(cleaned);

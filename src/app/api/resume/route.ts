@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
+import { dbError, serverError } from "@/lib/api-response";
+import { parseBody, emailDigestSchema } from "@/lib/validation";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { supabase, user } = gate;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -25,28 +22,23 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { supabase, user } = gate;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const parsed = await parseBody(request, emailDigestSchema);
+    if ("error" in parsed) return parsed.error;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ email_digest_enabled: parsed.data.emailDigestEnabled })
+      .eq("id", user.id);
+
+    if (error) return dbError("resume.patch", error, "Failed to update settings");
+
+    return NextResponse.json({ emailDigestEnabled: parsed.data.emailDigestEnabled });
+  } catch (err) {
+    return serverError("resume.patch", err);
   }
-
-  const body = await request.json();
-  if (typeof body.emailDigestEnabled !== "boolean") {
-    return NextResponse.json({ error: "Invalid value" }, { status: 400 });
-  }
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ email_digest_enabled: body.emailDigestEnabled })
-    .eq("id", user.id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ emailDigestEnabled: body.emailDigestEnabled });
 }

@@ -1,72 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { requireApiAdmin } from "@/lib/api-auth";
+import { dbError, serverError } from "@/lib/api-response";
+import { parseBody, updateUserRoleSchema } from "@/lib/validation";
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const gate = await requireApiAdmin();
+  if (gate instanceof Response) return gate;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
+  // Cross-user read: list every profile. Legitimate admin operation.
   const serviceClient = await createServiceClient();
-  const { data } = await serviceClient
+  const { data, error } = await serviceClient
     .from("profiles")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if (error) return dbError("admin.users.list", error, "Failed to load users");
 
   return NextResponse.json(data || []);
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const gate = await requireApiAdmin();
+  if (gate instanceof Response) return gate;
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const parsed = await parseBody(request, updateUserRoleSchema);
+    if ("error" in parsed) return parsed.error;
+    const { userId, role } = parsed.data;
+
+    const serviceClient = await createServiceClient();
+    const { error } = await serviceClient
+      .from("profiles")
+      .update({ role })
+      .eq("id", userId);
+
+    if (error) return dbError("admin.users.updateRole", error, "Failed to update role");
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return serverError("admin.users.updateRole", err);
   }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const body = await request.json();
-  const { userId, role } = body;
-
-  if (!["member", "admin"].includes(role)) {
-    return NextResponse.json({ error: "Invalid role" }, { status: 400 });
-  }
-
-  const serviceClient = await createServiceClient();
-  const { error } = await serviceClient
-    .from("profiles")
-    .update({ role })
-    .eq("id", userId);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
 }

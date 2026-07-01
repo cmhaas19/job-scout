@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { requireApiUser } from "@/lib/api-auth";
+import { dbError } from "@/lib/api-response";
+import { parsePagination } from "@/lib/validation";
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireApiUser();
+  if (gate instanceof Response) return gate;
+  const { supabase, user } = gate;
 
   const url = request.nextUrl;
   const company = url.searchParams.get("company");
@@ -22,9 +19,8 @@ export async function GET(request: NextRequest) {
   const showArchived = url.searchParams.get("showArchived");
   const sortBy = url.searchParams.get("sortBy") || "total_score";
   const sortOrder = url.searchParams.get("sortOrder") || "desc";
-  const page = parseInt(url.searchParams.get("page") || "1");
-  const limit = parseInt(url.searchParams.get("limit") || "50");
-  const offset = (page - 1) * limit;
+  // Clamp untrusted pagination (page >= 1, 1 <= limit <= 100).
+  const { page, limit, offset } = parsePagination(url.searchParams);
 
   let query = supabase
     .from("job_evaluations")
@@ -96,9 +92,7 @@ export async function GET(request: NextRequest) {
 
   const { data, count, error } = await query;
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  if (error) return dbError("jobs.list", error, "Failed to load jobs");
 
   return NextResponse.json({
     jobs: data || [],
