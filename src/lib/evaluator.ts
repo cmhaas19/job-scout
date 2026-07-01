@@ -1,6 +1,27 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getConfigNumber, getConfigString } from "@/lib/config";
+import { logger } from "@/lib/logger";
+
+// One shared client. maxRetries covers Anthropic 429/500/529 overloads with
+// SDK-native exponential backoff, so a transient overload doesn't fail a job.
+// A per-request timeout bounds a single call so a stuck/overloaded request
+// can't stall a whole batch step toward the serverless time limit.
+const anthropic = new Anthropic({ maxRetries: 4, timeout: 60_000 });
+
+/**
+ * Everything an evaluation needs that is constant across all jobs in a run:
+ * the fully-interpolated system prompt (incl. calibration), the model, and the
+ * prompt version. Build once with `buildEvalContext` and reuse per job to avoid
+ * re-querying Supabase (system_prompts, prompt_versions, rated jobs, config)
+ * on every single job.
+ */
+export interface EvalContext {
+  systemPrompt: string;
+  model: string;
+  promptVersion: number;
+  resumeText: string;
+}
 
 export interface EvalResult {
   scores: {
@@ -122,34 +143,71 @@ KEY PATTERNS TO LEARN:
   return prompt;
 }
 
-export async function evaluateJob(
+/**
+ * Build the per-run evaluation context once (system prompt + model + version).
+ * Reuse the result across every job in the run via `evaluateJobWithContext`.
+ */
+export async function buildEvalContext(
   userId: string,
-  resumeText: string,
+  resumeText: string
+): Promise<EvalContext> {
+  const [model, systemPrompt, promptVersion] = await Promise.all([
+    getConfigString("eval_model"),
+    buildSystemPrompt(userId),
+    getPromptVersion(),
+  ]);
+  return {
+    model: model || "claude-sonnet-4-20250514",
+    systemPrompt,
+    promptVersion,
+    resumeText,
+  };
+}
+
+/**
+ * Evaluate one job using a prebuilt context. The system prompt and resume are
+ * constant across the run, so both carry `cache_control` — Anthropic prompt
+ * caching means only the (varying) job posting is re-processed after the first
+ * call, cutting latency and input-token cost.
+ */
+export async function evaluateJobWithContext(
+  ctx: EvalContext,
   company: string,
   position: string,
   jobDescription: string
 ): Promise<EvalResult | null> {
-  const model = await getConfigString("eval_model");
-  const systemPrompt = await buildSystemPrompt(userId);
-  const promptVersion = await getPromptVersion();
-
-  const client = new Anthropic();
-
-  const userMessage = `CANDIDATE RESUME:
-${resumeText}
-
----
-
-JOB POSTING: ${company} — ${position}
-
-${jobDescription}`;
-
-  const response = await client.messages.create({
-    model: model || "claude-sonnet-4-20250514",
+  const response = await anthropic.messages.create({
+    model: ctx.model,
     max_tokens: 1024,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
+    system: [
+      {
+        type: "text",
+        text: ctx.systemPrompt,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `CANDIDATE RESUME:\n${ctx.resumeText}`,
+            cache_control: { type: "ephemeral" },
+          },
+          {
+            type: "text",
+            text: `---\n\nJOB POSTING: ${company} — ${position}\n\n${jobDescription}`,
+          },
+        ],
+      },
+    ],
   });
+
+  const cacheRead = response.usage?.cache_read_input_tokens ?? 0;
+  if (cacheRead > 0) {
+    logger.info("evaluator", "prompt cache hit", { company, cacheRead });
+  }
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") return null;
@@ -157,7 +215,23 @@ ${jobDescription}`;
   const result = parseEvalResponse(textBlock.text);
   if (!result) return null;
 
-  return { ...result, prompt_version: promptVersion };
+  return { ...result, prompt_version: ctx.promptVersion };
+}
+
+/**
+ * Evaluate a single job, building the context inline. Kept for callers that
+ * evaluate one job in isolation (e.g. re-evaluation of a single record); the
+ * batch pipeline uses `buildEvalContext` + `evaluateJobWithContext` instead.
+ */
+export async function evaluateJob(
+  userId: string,
+  resumeText: string,
+  company: string,
+  position: string,
+  jobDescription: string
+): Promise<EvalResult | null> {
+  const ctx = await buildEvalContext(userId, resumeText);
+  return evaluateJobWithContext(ctx, company, position, jobDescription);
 }
 
 export function parseEvalResponse(text: string): Omit<EvalResult, "prompt_version"> | null {

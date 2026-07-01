@@ -7,9 +7,18 @@ const DEFAULTS: Record<string, unknown> = {
   score_threshold_good: 70,
   score_threshold_borderline: 60,
   eval_model: "claude-sonnet-4-20250514",
-  eval_concurrency: 5,
+  // Claude evaluations run on their own pool and overlap description fetching,
+  // so this can be well above fetch_concurrency (Anthropic handles it fine).
+  eval_concurrency: 12,
+  // Concurrent LinkedIn description fetches. Kept modest — this is the main
+  // rate-limit/ban lever, so raise it cautiously.
   fetch_concurrency: 5,
   delay_between_fetches_ms: 1500,
+  // Jobs processed per Inngest step. Each batch is a separate invocation with a
+  // fresh function-timeout budget; keep it small enough that one batch's
+  // fetch+eval can't approach the 300s cap, but large enough to keep the eval
+  // pool saturated and minimize step-transition overhead.
+  scrape_batch_size: 12,
   max_searches_per_user: 10,
   max_refreshes_per_hour: 2,
   max_results_per_search: 100,

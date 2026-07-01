@@ -55,6 +55,11 @@ export function parseAgoTime(agoTime: string): string | null {
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
+// Hard ceiling on any single LinkedIn request. Without it a stuck connection
+// could hang indefinitely (Node fetch has no default timeout) and silently
+// consume the whole function budget.
+const FETCH_TIMEOUT_MS = 15_000;
+
 export function parseSearchResults(html: string): JobCard[] {
   const $ = cheerio.load(html);
   const jobs: JobCard[] = [];
@@ -117,6 +122,7 @@ export async function fetchPage(url: string): Promise<string> {
       Accept: "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9",
     },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   if (response.status === 429 || response.status === 999) {
