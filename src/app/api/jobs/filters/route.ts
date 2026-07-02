@@ -1,58 +1,19 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/api-auth";
+import { dbError } from "@/lib/api-response";
 
 export async function GET() {
   const gate = await requireApiUser();
   if (gate instanceof Response) return gate;
-  const { supabase, user } = gate;
+  const { supabase } = gate;
 
-  // Fetch distinct values for filter dropdowns
-  const [companiesRes, locationsRes, searchesRes, versionsRes] = await Promise.all([
-    supabase
-      .from("job_evaluations")
-      .select("company")
-      .eq("user_id", user.id)
-      .eq("skipped", false)
-      .eq("archived", false)
-      .order("company"),
-    supabase
-      .from("job_evaluations")
-      .select("location")
-      .eq("user_id", user.id)
-      .eq("skipped", false)
-      .eq("archived", false)
-      .not("location", "is", null)
-      .order("location"),
-    supabase
-      .from("job_evaluations")
-      .select("search_query")
-      .eq("user_id", user.id)
-      .eq("skipped", false)
-      .eq("archived", false)
-      .not("search_query", "is", null)
-      .order("search_query"),
-    supabase
-      .from("job_evaluations")
-      .select("prompt_version")
-      .eq("user_id", user.id)
-      .eq("skipped", false)
-      .eq("archived", false)
-      .not("prompt_version", "is", null)
-      .order("prompt_version"),
-  ]);
+  // Distinct values come from a Postgres function so dropdowns stay correct
+  // regardless of row count (a plain .select() caps at 1000 rows and truncated
+  // the newest prompt versions). RLS + auth.uid() scope it to the caller.
+  const { data, error } = await supabase.rpc("get_job_filter_options");
+  if (error) return dbError("jobs.filters", error, "Failed to load filters");
 
-  const unique = (arr: any[], key: string): string[] => {
-    const set = new Set<string>();
-    for (const item of arr || []) {
-      if (item[key]) set.add(String(item[key]));
-    }
-    return Array.from(set).sort();
-  };
-
-  return NextResponse.json({
-    companies: unique(companiesRes.data || [], "company"),
-    locations: unique(locationsRes.data || [], "location"),
-    searches: unique(searchesRes.data || [], "search_query"),
-    promptVersions: unique(versionsRes.data || [], "prompt_version"),
-  });
+  return NextResponse.json(
+    data ?? { companies: [], locations: [], searches: [], promptVersions: [] }
+  );
 }
