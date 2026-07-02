@@ -454,6 +454,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_job_filter_options: { Args: never; Returns: Json }
       is_admin: { Args: never; Returns: boolean }
     }
     Enums: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { JobDetailPanel } from "@/components/job-detail-panel";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,8 @@ type ReEvalStatus = "idle" | "running" | "completed" | "error";
 
 export default function JobsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const { showToast } = useToast();
 
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -91,12 +93,15 @@ export default function JobsPage() {
   const [locationFilter, setLocationFilter] = useState(searchParams.get("location") || "");
   const [searchQueryFilter, setSearchQueryFilter] = useState(searchParams.get("searchQuery") || "");
   const [promptVersionFilter, setPromptVersionFilter] = useState(searchParams.get("promptVersion") || "");
-  const [postedWithinFilter, setPostedWithinFilter] = useState(searchParams.get("postedWithin") || "");
+  // Default to the last week unless the URL explicitly carries a value
+  // (an explicit empty value means "Anytime" and must be preserved).
+  const postedWithinParam = searchParams.get("postedWithin");
+  const [postedWithinFilter, setPostedWithinFilter] = useState(postedWithinParam === null ? "1w" : postedWithinParam);
   const [fitCategoryFilter, setFitCategoryFilter] = useState(searchParams.get("fitCategory") || "");
   const [sortBy, setSortBy] = useState("total_score");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [showSkipped, setShowSkipped] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const [showSkipped, setShowSkipped] = useState(searchParams.get("skipped") === "true");
+  const [showArchived, setShowArchived] = useState(searchParams.get("showArchived") === "true");
   const hasUrlFilters = !!(searchParams.get("company") || searchParams.get("location") || searchParams.get("searchQuery") || searchParams.get("promptVersion") || searchParams.get("postedWithin") || searchParams.get("fitCategory"));
   const [showFilters, setShowFilters] = useState(hasUrlFilters);
 
@@ -168,6 +173,23 @@ export default function JobsPage() {
   useEffect(() => {
     setPage(1);
   }, [companyFilter, locationFilter, searchQueryFilter, promptVersionFilter, postedWithinFilter, fitCategoryFilter, sortBy, sortOrder, showSkipped, showArchived]);
+
+  // Mirror the active filters into the URL so a refresh restores them.
+  // Use replace (not push) to avoid flooding browser history on each tweak.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (companyFilter) params.set("company", companyFilter);
+    if (locationFilter) params.set("location", locationFilter);
+    if (searchQueryFilter) params.set("searchQuery", searchQueryFilter);
+    if (promptVersionFilter) params.set("promptVersion", promptVersionFilter);
+    // Always written so an explicit "Anytime" ("") is distinguishable from unset.
+    params.set("postedWithin", postedWithinFilter);
+    if (fitCategoryFilter) params.set("fitCategory", fitCategoryFilter);
+    if (showSkipped) params.set("skipped", "true");
+    if (showArchived) params.set("showArchived", "true");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [companyFilter, locationFilter, searchQueryFilter, promptVersionFilter, postedWithinFilter, fitCategoryFilter, showSkipped, showArchived, pathname, router]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -337,7 +359,7 @@ export default function JobsPage() {
     setLocationFilter("");
     setSearchQueryFilter("");
     setPromptVersionFilter("");
-    setPostedWithinFilter("");
+    setPostedWithinFilter("1w");
     setFitCategoryFilter("");
   }
 
