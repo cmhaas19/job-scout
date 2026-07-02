@@ -17,6 +17,9 @@ npm test               # Run Vitest once (also: test:watch, test:coverage)
 npm run db:new <name>  # Create a timestamped Supabase migration
 npm run db:push        # Apply migrations to the linked project
 npm run db:types       # Regenerate src/lib/database.types.ts
+
+# Local Inngest (run alongside `npm run dev`; needs INNGEST_DEV=1 in .env.local)
+npx inngest-cli@latest dev -u http://localhost:3210/api/inngest   # dashboard on :8288
 ```
 
 Tests use **Vitest**; specs live next to the code as `src/lib/**/*.test.ts`.
