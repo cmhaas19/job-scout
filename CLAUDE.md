@@ -101,7 +101,7 @@ Scheduled scrapes run on **Inngest** (`src/lib/inngest/`), served at `/api/innge
 
 ### Deployment
 
-Vercel. Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY` (email digests), `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (set by the Vercel↔Inngest integration; the local `inngest-cli dev` server needs neither). Because scrapes run inside time-limited serverless functions, long runs can be killed mid-flight — hence the heartbeat/`failStaleRuns` self-healing and the admin run-log cancel/rerun controls.
+Vercel (custom domain `jobscout.oakworks.ai`). Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY` (email digests), `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` (set by the Vercel↔Inngest integration; the local `inngest-cli dev` server needs neither), and `INNGEST_SERVE_HOST=https://jobscout.oakworks.ai` so Inngest syncs the stable custom domain instead of the ephemeral per-deploy URL. **Vercel Deployment Protection (Vercel Authentication) must stay OFF** — when on, it bounces Inngest's sync of `/api/inngest` to an SSO wall and the app never registers. `INNGEST_DEV` is local-only, never set in Vercel. Because scrapes run inside time-limited serverless functions, long runs can be killed mid-flight — hence the heartbeat/`failStaleRuns` self-healing and the admin run-log cancel/rerun controls.
 
 ## Conventions
 
