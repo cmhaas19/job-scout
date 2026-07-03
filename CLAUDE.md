@@ -51,7 +51,7 @@ Tests use **Vitest**; specs live next to the code as `src/lib/**/*.test.ts`.
 - `src/lib/scraper/salary.ts` — Salary extraction from job descriptions.
 - `src/lib/scraper/stale-runs.ts` — `failStaleRuns()` self-heals orphaned `run_logs` rows. A run stuck in `running` with no heartbeat within `STALE_RUN_THRESHOLD_MS` (3 min) is almost always a serverless function that hit the Vercel time limit and was killed before recording a final status; it gets marked `failed`. Called from the scrape and cron routes.
 - `src/lib/constants.ts` — Source of truth for fit category labels/colors and the per-category rubric weights (`SCORE_LABELS`: required_skills 30, industry_domain_match 30, role_level_alignment 20, years_of_experience 10, nice_to_have_skills 5, education_certs 5). Keep in sync with the evaluator prompt.
-- `src/lib/email.ts` — Resend-backed digest emails of top job matches (`sendDigestEmail`), gated by the `email_digest` config and `RESEND_API_KEY`. Testable via `/api/email/test`.
+- `src/lib/email.ts` — Resend-backed digest emails of top job matches (`sendDigestEmail`), gated by the `email_digest` config and `RESEND_API_KEY`. `buildDigestHtml` renders a dark-header layout with summary chips, an "Apply now" block surfacing remote STRONG/GOOD-FIT roles (remote = `location` text match OR the originating search's `remote_filter`), fit-tier card sections, a compact weak-fit list, per-role color-coded search pills, and a Top-10-this-week section sorted by fit then score. Testable via `/api/email/test` (add `?empty=true` for the quiet-day fallback).
 
 ### Auth Pattern
 
