@@ -220,16 +220,16 @@ const MONO_STACK = "'Geist Mono','SF Mono',ui-monospace,monospace";
 function searchPill(name: string | null, pal: Palette | undefined): string {
   if (!name) return "";
   const p = pal ?? PALETTES[PALETTES.length - 1];
-  return `<span style="display:inline-flex;align-items:center;gap:6px;background:${p.pillBg};padding:4px 9px 4px 8px;border-radius:8px;">
-    <span style="width:6px;height:6px;border-radius:50%;background:${p.pillDot};"></span>
-    <span style="font-size:11.5px;font-weight:600;color:${p.pillInk};">${esc(name)}</span>
+  return `<span style="display:inline-block;background:${p.pillBg};padding:4px 9px;border-radius:8px;vertical-align:middle;">
+    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${p.pillDot};vertical-align:middle;"></span>
+    <span style="display:inline-block;font-size:11.5px;font-weight:600;color:${p.pillInk};vertical-align:middle;margin-left:6px;">${esc(name)}</span>
   </span>`;
 }
 
 function remoteBadge(): string {
-  return `<span style="display:inline-flex;align-items:center;gap:5px;background:#E4F5EC;padding:3px 8px;border-radius:999px;">
-    <span style="width:5px;height:5px;border-radius:50%;background:#12A366;"></span>
-    <span style="font-size:10.5px;font-weight:600;color:#0E7A50;letter-spacing:0.2px;">REMOTE</span>
+  return `<span style="display:inline-block;background:#E4F5EC;padding:3px 8px;border-radius:999px;vertical-align:middle;">
+    <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#12A366;vertical-align:middle;"></span>
+    <span style="display:inline-block;font-size:10.5px;font-weight:600;color:#0E7A50;letter-spacing:0.2px;vertical-align:middle;margin-left:5px;">REMOTE</span>
   </span>`;
 }
 
@@ -241,30 +241,31 @@ function cardRow(
   const t = tierStyle(job.fit_category);
   const score = job.total_score == null ? "—" : String(Math.round(job.total_score));
   const location = job.location ? ` · ${esc(job.location)}` : "";
-  const salary = job.salary
-    ? `<span style="font-size:12px;color:#98A0AD;">${esc(job.salary)}</span>`
-    : "";
   const reason = job.eval_summary
     ? `<div style="font-size:12.5px;color:#6B7280;margin-top:9px;line-height:1.5;">${esc(job.eval_summary)}</div>`
     : "";
+  const pill = searchPill(job.search_query, opts.palette);
+  const salaryTag = job.salary
+    ? `<span style="display:inline-block;font-size:12px;color:#98A0AD;vertical-align:middle;margin-left:9px;">${esc(job.salary)}</span>`
+    : "";
+  const metaLine =
+    pill || salaryTag ? `<div style="margin-top:9px;">${pill}${salaryTag}</div>` : "";
 
-  return `<a href="${esc(job.job_url)}" style="display:flex;gap:15px;text-decoration:none;padding:16px 12px;border-radius:14px;">
-    <div style="flex:none;width:48px;height:48px;border-radius:13px;background:${t.badgeBg};display:flex;align-items:center;justify-content:center;">
-      <span style="font-family:${MONO_STACK};font-weight:600;font-size:18px;color:${t.badgeInk};line-height:1;">${score}</span>
-    </div>
-    <div style="flex:1;min-width:0;">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span style="font-size:15px;font-weight:600;color:#141821;letter-spacing:-0.1px;line-height:1.25;">${esc(job.position)}</span>
-        ${opts.remote ? remoteBadge() : ""}
-      </div>
-      <div style="font-size:13px;color:#5C6472;margin-top:4px;">${esc(job.company)}${location}</div>
-      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px;">
-        ${searchPill(job.search_query, opts.palette)}
-        ${salary}
-      </div>
-      ${reason}
-    </div>
-  </a>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+    <tr>
+      <td width="60" valign="top" style="padding:16px 0 16px 12px;">
+        <div style="width:48px;height:48px;border-radius:13px;background:${t.badgeBg};text-align:center;line-height:48px;">
+          <span style="font-family:${MONO_STACK};font-weight:600;font-size:18px;color:${t.badgeInk};">${score}</span>
+        </div>
+      </td>
+      <td valign="top" style="padding:16px 12px;">
+        <a href="${esc(job.job_url)}" style="text-decoration:none;font-size:15px;font-weight:600;color:#141821;letter-spacing:-0.1px;line-height:1.25;vertical-align:middle;">${esc(job.position)}</a>${opts.remote ? " " + remoteBadge() : ""}
+        <div style="font-size:13px;color:#5C6472;margin-top:4px;">${esc(job.company)}${location}</div>
+        ${metaLine}
+        ${reason}
+      </td>
+    </tr>
+  </table>`;
 }
 
 // Compact dense row used by the WEAK FIT list.
@@ -274,31 +275,35 @@ function compactRow(
 ): string {
   const score = job.total_score == null ? "—" : String(Math.round(job.total_score));
   const p = opts.palette ?? PALETTES[PALETTES.length - 1];
-  const border = opts.first ? "none" : "1px solid #EDEFF2";
+  const border = opts.first ? "" : "border-top:1px solid #EDEFF2;";
   const searchTag = job.search_query
-    ? `<span style="display:inline-flex;align-items:center;gap:5px;flex:none;">
-        <span style="width:6px;height:6px;border-radius:50%;background:${p.pillDot};"></span>
-        <span style="font-size:11px;color:#8A909C;">${esc(job.search_query)}</span>
+    ? `<span style="display:inline-block;vertical-align:middle;white-space:nowrap;">
+        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${p.pillDot};vertical-align:middle;"></span>
+        <span style="display:inline-block;font-size:11px;color:#8A909C;vertical-align:middle;margin-left:5px;">${esc(job.search_query)}</span>
       </span>`
     : "";
-  return `<a href="${esc(job.job_url)}" style="display:flex;align-items:center;gap:13px;text-decoration:none;padding:11px 15px;border-top:${border};">
-    <span style="flex:none;width:30px;font-family:${MONO_STACK};font-weight:600;font-size:14px;color:#9AA1AC;text-align:center;">${score}</span>
-    <span style="flex:1;min-width:0;font-size:13px;font-weight:500;color:#565D69;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(job.position)}<span style="color:#A2A9B4;font-weight:400;"> · ${esc(job.company)}</span></span>
-    ${searchTag}
-  </a>`;
+  return `<tr>
+    <td width="44" valign="middle" style="${border}padding:11px 0 11px 15px;font-family:${MONO_STACK};font-weight:600;font-size:14px;color:#9AA1AC;text-align:center;">${score}</td>
+    <td valign="middle" style="${border}padding:11px 10px;font-size:13px;font-weight:500;color:#565D69;">
+      <a href="${esc(job.job_url)}" style="text-decoration:none;color:#565D69;font-weight:500;">${esc(job.position)}</a><span style="color:#A2A9B4;font-weight:400;"> · ${esc(job.company)}</span>
+    </td>
+    <td valign="middle" align="right" style="${border}padding:11px 15px 11px 8px;">${searchTag}</td>
+  </tr>`;
 }
 
 function sectionHeader(label: string, count: number, dot: string, muted = false): string {
   const labelColor = muted ? "#8A909C" : "#141821";
   const countColor = muted ? "#B0B6C0" : "#9098A5";
   return `<div style="padding:26px 30px 8px;">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
-      <div style="display:flex;align-items:center;gap:9px;">
-        <span style="width:9px;height:9px;border-radius:50%;background:${dot};"></span>
-        <span style="font-size:13px;font-weight:700;letter-spacing:0.4px;color:${labelColor};text-transform:uppercase;">${esc(label)}</span>
-      </div>
-      <span style="font-size:12.5px;color:${countColor};font-family:${MONO_STACK};">${count}</span>
-    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td valign="middle" style="text-align:left;">
+          <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${dot};vertical-align:middle;"></span>
+          <span style="display:inline-block;font-size:13px;font-weight:700;letter-spacing:0.4px;color:${labelColor};text-transform:uppercase;vertical-align:middle;margin-left:9px;">${esc(label)}</span>
+        </td>
+        <td valign="middle" align="right" style="font-size:12.5px;color:${countColor};font-family:${MONO_STACK};">${count}</td>
+      </tr>
+    </table>
   </div>`;
 }
 
@@ -374,14 +379,14 @@ export function buildDigestHtml(
     .map((cat) => {
       const t = tierStyle(cat);
       const label = cat.replace(/ FIT$/, "").toLowerCase();
-      return `<div style="display:flex;align-items:center;gap:7px;background:#1C1E2B;border:1px solid #2A2D3D;border-radius:10px;padding:8px 12px;">
-        <span style="width:8px;height:8px;border-radius:50%;background:${t.dot};"></span>
-        <span style="font-size:13px;color:#E7E9F0;font-weight:500;">${countOf(cat)} ${label}</span>
-      </div>`;
+      return `<span style="display:inline-block;background:#1C1E2B;border:1px solid #2A2D3D;border-radius:10px;padding:8px 12px;margin:0 8px 8px 0;vertical-align:middle;">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.dot};vertical-align:middle;"></span>
+        <span style="display:inline-block;font-size:13px;color:#E7E9F0;font-weight:500;vertical-align:middle;margin-left:7px;">${countOf(cat)} ${label}</span>
+      </span>`;
     })
     .join("");
   const chipsBlock = chips
-    ? `<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;">${chips}</div>`
+    ? `<div style="margin-top:12px;">${chips}</div>`
     : "";
 
   // --- Priority "Apply now" block ---
@@ -391,27 +396,33 @@ export function buildDigestHtml(
       .map((job) => {
         const score =
           job.total_score == null ? "—" : String(Math.round(job.total_score));
-        return `<a href="${esc(job.job_url)}" style="display:flex;align-items:center;gap:14px;text-decoration:none;background:#FFFFFF;border:1px solid #CDEBDC;border-radius:13px;padding:13px 15px;">
-          <div style="flex:none;width:46px;height:46px;border-radius:12px;background:#E4F5EC;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <span style="font-family:${MONO_STACK};font-weight:600;font-size:17px;color:#0E7A50;line-height:1;">${score}</span>
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:14.5px;font-weight:600;color:#141821;line-height:1.3;">${esc(job.position)}</div>
-            <div style="font-size:12.5px;color:#5C6472;margin-top:3px;">${esc(job.company)}${job.location ? ` · ${esc(job.location)}` : ""}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;flex:none;background:#E4F5EC;padding:5px 10px;border-radius:999px;">
-            <span style="width:6px;height:6px;border-radius:50%;background:#12A366;"></span>
-            <span style="font-size:11.5px;font-weight:600;color:#0E7A50;">Remote</span>
-          </div>
-        </a>`;
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;background:#FFFFFF;border:1px solid #CDEBDC;border-radius:13px;margin-bottom:10px;">
+          <tr>
+            <td width="61" valign="middle" style="padding:13px 0 13px 15px;">
+              <div style="width:46px;height:46px;border-radius:12px;background:#E4F5EC;text-align:center;line-height:46px;">
+                <span style="font-family:${MONO_STACK};font-weight:600;font-size:17px;color:#0E7A50;">${score}</span>
+              </div>
+            </td>
+            <td valign="middle" style="padding:13px 12px;">
+              <a href="${esc(job.job_url)}" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#141821;line-height:1.3;">${esc(job.position)}</a>
+              <div style="font-size:12.5px;color:#5C6472;margin-top:3px;">${esc(job.company)}${job.location ? ` · ${esc(job.location)}` : ""}</div>
+            </td>
+            <td valign="middle" align="right" style="padding:13px 15px 13px 8px;">
+              <span style="display:inline-block;background:#E4F5EC;padding:5px 10px;border-radius:999px;white-space:nowrap;">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#12A366;vertical-align:middle;"></span>
+                <span style="display:inline-block;font-size:11.5px;font-weight:600;color:#0E7A50;vertical-align:middle;margin-left:6px;">Remote</span>
+              </span>
+            </td>
+          </tr>
+        </table>`;
       })
       .join("");
-    priorityBlock = `<div style="padding:22px 30px 24px;background:#F1FAF5;border-bottom:1px solid #E4E7EC;">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;">
-        <span style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#0E7A50;text-transform:uppercase;">Apply now</span>
-        <span style="font-size:12.5px;color:#4F7A66;">Remote roles that scored high enough to act on</span>
+    priorityBlock = `<div style="padding:22px 30px 14px;background:#F1FAF5;border-bottom:1px solid #E4E7EC;">
+      <div style="margin-bottom:14px;">
+        <span style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:1.4px;color:#0E7A50;text-transform:uppercase;vertical-align:middle;">Apply now</span>
+        <span style="display:inline-block;font-size:12.5px;color:#4F7A66;vertical-align:middle;margin-left:9px;">Remote roles that scored high enough to act on</span>
       </div>
-      <div style="display:flex;flex-direction:column;gap:10px;">${rows}</div>
+      ${rows}
     </div>`;
   }
 
@@ -449,17 +460,19 @@ export function buildDigestHtml(
       .map((job, i) => compactRow(job, { palette: palOf(job), first: i === 0 }))
       .join("");
     weakSection = `<div style="padding:26px 30px 6px;">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;">
-          <div style="display:flex;align-items:center;gap:9px;">
-            <span style="width:9px;height:9px;border-radius:50%;background:#B4BAC4;"></span>
-            <span style="font-size:13px;font-weight:700;letter-spacing:0.4px;color:#8A909C;text-transform:uppercase;">Weak fit</span>
-          </div>
-          <span style="font-size:12.5px;color:#B0B6C0;font-family:${MONO_STACK};">${countOf("WEAK FIT")}</span>
-        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:2px;">
+          <tr>
+            <td valign="middle" style="text-align:left;">
+              <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#B4BAC4;vertical-align:middle;"></span>
+              <span style="display:inline-block;font-size:13px;font-weight:700;letter-spacing:0.4px;color:#8A909C;text-transform:uppercase;vertical-align:middle;margin-left:9px;">Weak fit</span>
+            </td>
+            <td valign="middle" align="right" style="font-size:12.5px;color:#B0B6C0;font-family:${MONO_STACK};">${countOf("WEAK FIT")}</td>
+          </tr>
+        </table>
         <div style="font-size:12px;color:#A2A9B4;margin-top:2px;">Lower priority — scanning only.</div>
       </div>
       <div style="padding:12px 24px 4px;">
-        <div style="background:#F7F8FA;border:1px solid #EDEFF2;border-radius:14px;overflow:hidden;">${rows}</div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;background:#F7F8FA;border:1px solid #EDEFF2;border-radius:14px;">${rows}</table>
       </div>`;
   }
 
@@ -495,13 +508,15 @@ export function buildDigestHtml(
       .join("");
     top10Section =
       `<div style="padding:26px 30px 8px;border-top:1px solid #EEF0F3;margin-top:14px;">
-        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;">
-          <div style="display:flex;align-items:center;gap:9px;">
-            <span style="width:9px;height:9px;border-radius:50%;background:#5B57F5;"></span>
-            <span style="font-size:13px;font-weight:700;letter-spacing:0.4px;color:#141821;text-transform:uppercase;">Top 10 this week</span>
-          </div>
-          <span style="font-size:12.5px;color:#9098A5;font-family:${MONO_STACK};">${top10.length}</span>
-        </div>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td valign="middle" style="text-align:left;">
+              <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#5B57F5;vertical-align:middle;"></span>
+              <span style="display:inline-block;font-size:13px;font-weight:700;letter-spacing:0.4px;color:#141821;text-transform:uppercase;vertical-align:middle;margin-left:9px;">Top 10 this week</span>
+            </td>
+            <td valign="middle" align="right" style="font-size:12.5px;color:#9098A5;font-family:${MONO_STACK};">${top10.length}</td>
+          </tr>
+        </table>
       </div>
       <div style="padding:0 18px;">${rows}</div>`;
   }
@@ -517,16 +532,16 @@ export function buildDigestHtml(
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([nm, count]) => {
       const p = paletteMap.get(nm) ?? PALETTES[PALETTES.length - 1];
-      return `<div style="display:inline-flex;align-items:center;gap:7px;background:${p.pillBg};padding:6px 11px;border-radius:9px;">
-        <span style="width:7px;height:7px;border-radius:50%;background:${p.pillDot};"></span>
-        <span style="font-size:12px;font-weight:600;color:${p.pillInk};">${esc(nm)}</span>
-        <span style="font-size:11.5px;color:#9CA3AE;font-family:${MONO_STACK};">${count}</span>
-      </div>`;
+      return `<span style="display:inline-block;background:${p.pillBg};padding:6px 11px;border-radius:9px;margin:0 8px 8px 0;vertical-align:middle;">
+        <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${p.pillDot};vertical-align:middle;"></span>
+        <span style="display:inline-block;font-size:12px;font-weight:600;color:${p.pillInk};vertical-align:middle;margin-left:7px;">${esc(nm)}</span>
+        <span style="display:inline-block;font-size:11.5px;color:#9CA3AE;font-family:${MONO_STACK};vertical-align:middle;margin-left:7px;">${count}</span>
+      </span>`;
     })
     .join("");
   const legendBlock = legendPills
     ? `<div style="font-size:11px;font-weight:700;letter-spacing:1.2px;color:#9098A5;text-transform:uppercase;margin-bottom:13px;">Your saved searches</div>
-       <div style="display:flex;flex-wrap:wrap;gap:8px;">${legendPills}</div>`
+       <div>${legendPills}</div>`
     : "";
 
   return `<!DOCTYPE html>
@@ -537,30 +552,39 @@ export function buildDigestHtml(
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
 </head>
-<body style="margin:0;background:#EDEFF3;font-family:${FONT_STACK};-webkit-font-smoothing:antialiased;color:#171A21;">
-  <div style="min-height:100%;background:#EDEFF3;padding:40px 20px 64px;">
-    <div style="max-width:680px;margin:0 auto;">
+<body style="margin:0;padding:0;background:#EDEFF3;font-family:${FONT_STACK};-webkit-font-smoothing:antialiased;color:#171A21;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EDEFF3;">
+    <tr>
+      <td align="center" style="padding:40px 20px 64px;">
+        <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:680px;">
+          <tr><td>
 
       <!-- sender context row -->
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 6px 14px;font-size:12.5px;color:#7A828E;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-weight:600;color:#4A5160;">${esc(fromAddress)}</span>
-          <span>to you</span>
-        </div>
-        <span>${esc(dateLine)}</span>
+      <div style="padding:0 6px 14px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td valign="middle" style="text-align:left;font-size:12.5px;color:#7A828E;">
+              <span style="font-weight:600;color:#4A5160;">${esc(fromAddress)}</span>
+              <span>&nbsp;to you</span>
+            </td>
+            <td valign="middle" align="right" style="font-size:12.5px;color:#7A828E;">${esc(dateLine)}</td>
+          </tr>
+        </table>
       </div>
 
       <div style="background:#FFFFFF;border:1px solid #E4E7EC;border-radius:18px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,0.04),0 12px 32px -12px rgba(16,24,40,0.14);">
 
         <!-- header -->
         <div style="padding:26px 30px 24px;background:#12131C;color:#FFFFFF;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:11px;">
-              <div style="width:30px;height:30px;border-radius:9px;background:#5B57F5;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;letter-spacing:-0.5px;">J</div>
-              <div style="font-weight:600;font-size:16px;letter-spacing:-0.2px;">Job Scout</div>
-            </div>
-            <div style="font-size:12px;color:#8A90A6;font-weight:500;text-transform:uppercase;letter-spacing:1.2px;">Daily Digest</div>
-          </div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td valign="middle" style="text-align:left;">
+                <span style="display:inline-block;width:30px;height:30px;border-radius:9px;background:#5B57F5;text-align:center;line-height:30px;font-weight:700;font-size:15px;letter-spacing:-0.5px;color:#FFFFFF;vertical-align:middle;">J</span>
+                <span style="display:inline-block;font-weight:600;font-size:16px;letter-spacing:-0.2px;color:#FFFFFF;vertical-align:middle;margin-left:11px;">Job Scout</span>
+              </td>
+              <td valign="middle" align="right" style="font-size:12px;color:#8A90A6;font-weight:500;text-transform:uppercase;letter-spacing:1.2px;">Daily Digest</td>
+            </tr>
+          </table>
           <div style="margin-top:22px;font-size:26px;font-weight:600;letter-spacing:-0.6px;line-height:1.15;">${esc(headline)}</div>
           <div style="margin-top:8px;font-size:14px;color:#A6ACBE;line-height:1.5;">${greeting} — here's what came back from your saved searches.</div>
           ${chipsBlock}
@@ -570,18 +594,26 @@ export function buildDigestHtml(
         ${top10Section}
 
         <!-- footer -->
-        <div style="padding:24px 30px 28px;margin-top:12px;border-top:1px solid #EEF0F3;">
+        <div style="padding:24px 30px 28px;border-top:1px solid #EEF0F3;">
           ${legendBlock}
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:${legendBlock ? "22px" : "0"};padding-top:18px;border-top:1px solid #EEF0F3;">
-            <span style="font-size:12px;color:#A2A9B4;">Scored against your resume by Job Scout AI.</span>
-            <a href="${APP_URL}/setup/searches" style="font-size:12.5px;font-weight:600;color:#5B57F5;text-decoration:none;">Manage searches →</a>
-          </div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:${legendBlock ? "22px" : "0"};border-top:1px solid #EEF0F3;">
+            <tr>
+              <td valign="middle" style="text-align:left;padding-top:18px;font-size:12px;color:#A2A9B4;">Scored against your resume by Job Scout AI.</td>
+              <td valign="middle" align="right" style="padding-top:18px;">
+                <a href="${APP_URL}/setup/searches" style="font-size:12.5px;font-weight:600;color:#5B57F5;text-decoration:none;">Manage searches →</a>
+              </td>
+            </tr>
+          </table>
         </div>
 
       </div>
       <div style="text-align:center;margin-top:20px;font-size:11.5px;color:#A2A9B4;">You're receiving this because you set up Job Scout. <a href="${APP_URL}/setup" style="color:#8890A0;">Manage preferences</a></div>
-    </div>
-  </div>
+
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 }
