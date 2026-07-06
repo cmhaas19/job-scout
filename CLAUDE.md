@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Job Scout is an AI-powered job fit evaluation platform. Users define LinkedIn job searches, the system scrapes results on a daily cron schedule (or on-demand), and Claude evaluates each job against the user's resume using a weighted rubric (100-point scale across 6 categories). Users can rate jobs to calibrate future evaluations. A companion Chrome extension (`extension/`) scores LinkedIn search-results pages in place using a personal API key.
+Job Scout is an AI-powered job fit evaluation platform. Users define LinkedIn job searches, the system scrapes results on a schedule (three times daily via Inngest) or on-demand, and Claude evaluates each job against the user's resume using a weighted rubric (100-point scale across 6 categories). Users can rate jobs to calibrate future evaluations. A companion Chrome extension (`extension/`) scores LinkedIn search-results pages in place using a personal API key.
 
 ## Commands
 
@@ -90,7 +90,7 @@ Stored in `system_config` table, read via `src/lib/config.ts` with defaults: `bl
 
 ### Streaming
 
-Scrape progress and re-evaluation use Server-Sent Events (SSE) — see `/api/scrape/status/[runId]` and `/api/jobs/re-evaluate`.
+Re-evaluation streams progress over Server-Sent Events (SSE) — see `/api/jobs/re-evaluate`. Scrape run progress is polled as JSON from `/api/scrape/status/[runId]` and surfaced in Run Logs.
 
 ### Chrome Extension
 

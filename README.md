@@ -150,9 +150,9 @@ All settings are editable at `/admin/settings` and take effect immediately:
 src/
   app/
     (auth)/           Login and registration pages
+    (app)/            Authenticated app pages (dashboard, jobs, searches, setup)
     admin/            Admin dashboard, settings, prompts, users, run logs
-    dashboard/        Job results, searches, resume, run history
-    api/              All API routes (jobs, searches, scrape, admin, resume)
+    api/              All API routes (jobs, searches, scrape, extension, admin, resume)
   components/         Sidebar, job detail panel, search form, UI primitives
   lib/
     scraper/          LinkedIn URL builder, HTML parser, salary parser, pipeline
