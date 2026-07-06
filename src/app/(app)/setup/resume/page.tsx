@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { FileText, Upload, Check, Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FileText, Upload, Check, Mail, Key, Copy } from "lucide-react";
 
 export default function ResumePage() {
   const [resumeText, setResumeText] = useState<string | null>(null);
@@ -20,6 +21,13 @@ export default function ResumePage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [digestEnabled, setDigestEnabled] = useState(true);
+  const [hasKey, setHasKey] = useState(false);
+  const [keyCreatedAt, setKeyCreatedAt] = useState<string | null>(null);
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [keyBusy, setKeyBusy] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const [keyError, setKeyError] = useState("");
+  const [keyStatusKnown, setKeyStatusKnown] = useState(false);
 
   const loadResume = useCallback(async () => {
     const res = await fetch("/api/resume");
@@ -29,9 +37,54 @@ export default function ResumePage() {
     setDigestEnabled(data.emailDigestEnabled ?? true);
   }, []);
 
+  const loadKeyStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/extension/key");
+      if (!res.ok) return;
+      const data = await res.json();
+      setHasKey(data.hasKey);
+      setKeyCreatedAt(data.createdAt);
+      setKeyStatusKnown(true);
+    } catch {
+      // Status unknown — handleGenerateKey will confirm before overwriting.
+    }
+  }, []);
+
   useEffect(() => {
     loadResume();
-  }, [loadResume]);
+    loadKeyStatus();
+  }, [loadResume, loadKeyStatus]);
+
+  async function handleGenerateKey() {
+    // Confirm when a key exists — or when we couldn't load key status and
+    // might be about to silently invalidate a working one.
+    if (
+      (hasKey || !keyStatusKnown) &&
+      !confirm(
+        "Regenerating will invalidate your current key (if any) — the extension will stop working until you paste the new one. Continue?"
+      )
+    ) {
+      return;
+    }
+    setKeyBusy(true);
+    setKeyCopied(false);
+    setKeyError("");
+    try {
+      const res = await fetch("/api/extension/key", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setKeyError(data.error);
+        return;
+      }
+      setNewKey(data.apiKey);
+      setHasKey(true);
+      setKeyCreatedAt(new Date().toISOString());
+    } catch {
+      setKeyError("Failed to generate key — check your connection and try again");
+    } finally {
+      setKeyBusy(false);
+    }
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -179,6 +232,84 @@ export default function ResumePage() {
             </Label>
           </div>
         </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Chrome Extension
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Score LinkedIn job listings in place. Generate an API key and
+                paste it into the Job Scout extension&apos;s options page.
+                {hasKey && keyCreatedAt && !newKey && (
+                  <>
+                    {" "}
+                    Key generated on{" "}
+                    {new Date(keyCreatedAt).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                    .
+                  </>
+                )}
+              </CardDescription>
+            </div>
+            <Button
+              variant={hasKey ? "outline" : "default"}
+              onClick={handleGenerateKey}
+              disabled={keyBusy}
+            >
+              {keyBusy
+                ? "Generating..."
+                : hasKey
+                ? "Regenerate Key"
+                : "Generate Key"}
+            </Button>
+          </div>
+        </CardHeader>
+        {keyError && (
+          <CardContent>
+            <div className="rounded-lg bg-destructive/10 text-destructive text-sm p-3">
+              {keyError}
+            </div>
+          </CardContent>
+        )}
+        {newKey && (
+          <CardContent>
+            <div className="rounded-lg bg-muted/50 p-4">
+              <div className="flex items-center gap-2">
+                <code className="flex-1 font-mono text-sm break-all select-all">
+                  {newKey}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(newKey);
+                    setKeyCopied(true);
+                    setTimeout(() => setKeyCopied(false), 3000);
+                  }}
+                >
+                  {keyCopied ? (
+                    <Check className="h-4 w-4 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  {keyCopied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                This key is shown only once — copy it now. Regenerating later
+                will invalidate it.
+              </p>
+            </div>
+          </CardContent>
+        )}
       </Card>
     </div>
   );

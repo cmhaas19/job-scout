@@ -1,6 +1,6 @@
 # Job Scout
 
-AI-powered job fit evaluation platform. Define LinkedIn job searches, scrape results on a daily schedule or on-demand, and let Claude score each job against your resume with a weighted rubric. Rate results to calibrate future evaluations.
+AI-powered job fit evaluation platform. Define LinkedIn job searches, scrape results on a schedule or on-demand, and let Claude score each job against your resume with a weighted rubric. Rate results to calibrate future evaluations. A companion Chrome extension scores LinkedIn search results in place as you browse.
 
 ## Screenshots
 
@@ -16,7 +16,7 @@ AI-powered job fit evaluation platform. Define LinkedIn job searches, scrape res
 
 1. **Upload your resume** (.md or .txt) so the AI evaluator has context about your background.
 2. **Create saved searches** with LinkedIn search parameters (keywords, location, job type, experience level, remote filter, etc.).
-3. **Run searches** on-demand or let the daily cron handle it. The scraper fetches job listings from LinkedIn's public search pages, filters out blocked publishers and low-comp roles, fetches full job descriptions, and sends each one to Claude for evaluation.
+3. **Run searches** on-demand or let scheduled runs handle it (three times daily via Inngest). The scraper fetches job listings from LinkedIn's public search pages, filters out blocked publishers and low-comp roles, fetches full job descriptions, and sends each one to Claude for evaluation.
 4. **Review scored results** in a sortable, filterable table. Each job gets a 0-100 score across six rubric categories (required skills, experience, role level, industry match, nice-to-haves, education).
 5. **Rate jobs** 1-4 stars with notes. Your ratings feed back into the evaluator as calibration data, so the AI learns what you actually care about beyond what the rubric captures.
 6. **Re-evaluate** jobs after changing the evaluator prompt. Prompt versions are tracked so you can see which version scored each job.
@@ -28,7 +28,8 @@ AI-powered job fit evaluation platform. Define LinkedIn job searches, scrape res
 - **Anthropic Claude API** for job evaluation
 - **Tailwind CSS** with custom UI components
 - **Cheerio** for HTML parsing
-- **Vercel** for deployment and cron scheduling
+- **Inngest** for durable scheduled scraping
+- **Vercel** for deployment
 
 ## Features
 
@@ -40,11 +41,12 @@ AI-powered job fit evaluation platform. Define LinkedIn job searches, scrape res
 - Per-user calibration from star ratings and notes
 - Sortable/filterable job results table with sticky headers and fixed pagination footer
 - Slide-out job detail panel with score breakdown, strengths/gaps, AI summary, and inline rating
-- Streaming progress for scrape and re-evaluate operations (SSE)
+- Streaming progress for re-evaluate operations (SSE); scrape runs tracked in Run Logs
 - Prompt version tracking with rollback support
 - Admin dashboard with global config, prompt editor, user management, and system-wide run logs
-- Daily scheduled scraping via Vercel Cron
+- Scheduled scraping three times daily (6am / noon / 5pm Pacific) via Inngest
 - Rate limiting on on-demand scrapes (configurable)
+- Chrome extension (`extension/`) that scores LinkedIn search-results pages in place, authenticated with a personal API key generated from Setup → Resume
 - Mobile-responsive sidebar navigation
 
 ## Getting Started
@@ -120,22 +122,11 @@ UPDATE profiles SET role = 'admin' WHERE email = 'your-email@example.com';
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3210](http://localhost:3210).
 
 ## Deployment
 
-Deploy to Vercel and set the environment variables in the Vercel dashboard. The `vercel.json` configures a daily cron job at 6:00 AM UTC that runs all users' active searches.
-
-```json
-{
-  "crons": [
-    {
-      "path": "/api/scrape/cron",
-      "schedule": "0 6 * * *"
-    }
-  ]
-}
-```
+Deploy to Vercel and set the environment variables in the Vercel dashboard. Scheduled scraping runs on [Inngest](https://www.inngest.com) (served at `/api/inngest`), not Vercel Cron — the Vercel↔Inngest integration sets `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`. See `CLAUDE.md` → "Scheduling (Inngest)" and "Deployment" for the full setup (custom domain, `INNGEST_SERVE_HOST`, and why Vercel Deployment Protection must stay off).
 
 ## Admin Configuration
 
@@ -159,9 +150,9 @@ All settings are editable at `/admin/settings` and take effect immediately:
 src/
   app/
     (auth)/           Login and registration pages
+    (app)/            Authenticated app pages (dashboard, jobs, searches, setup)
     admin/            Admin dashboard, settings, prompts, users, run logs
-    dashboard/        Job results, searches, resume, run history
-    api/              All API routes (jobs, searches, scrape, admin, resume)
+    api/              All API routes (jobs, searches, scrape, extension, admin, resume)
   components/         Sidebar, job detail panel, search form, UI primitives
   lib/
     scraper/          LinkedIn URL builder, HTML parser, salary parser, pipeline
@@ -173,6 +164,11 @@ supabase/
   config.toml         Supabase CLI configuration
   migrations/         CLI-managed, timestamped schema migrations
   legacy/             Archived pre-CLI SQL (reference only)
+extension/
+  manifest.json       Chrome extension (Manifest V3, no build step)
+  content.js/.css     Badge injection + scoring UI on LinkedIn search pages
+  background.js       Service worker; owns all Job Scout API calls
+  options.html/.js    API key + backend URL settings
 ```
 
 ## Testing
