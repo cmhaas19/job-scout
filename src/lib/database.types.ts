@@ -181,6 +181,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          api_key_created_at: string | null
+          api_key_hash: string | null
           created_at: string | null
           email: string
           email_digest_enabled: boolean
@@ -192,6 +194,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          api_key_created_at?: string | null
+          api_key_hash?: string | null
           created_at?: string | null
           email: string
           email_digest_enabled?: boolean
@@ -203,6 +207,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          api_key_created_at?: string | null
+          api_key_hash?: string | null
           created_at?: string | null
           email?: string
           email_digest_enabled?: boolean
