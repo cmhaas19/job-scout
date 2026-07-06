@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Job Scout for LinkedIn",
+  "version": "0.3.0",
+  "description": "Scores LinkedIn job listings against your Job Scout rubric and badges each job card with its fit.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://jobscout.oakworks.ai/*",
+    "http://localhost:3210/*",
+    "http://127.0.0.1:3210/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": { "default_title": "Job Scout" }
+}

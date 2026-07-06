@@ -1,0 +1,612 @@
+/* ── On-card score badges (fit-category colors, unchanged) ─────────────── */
+
+.jobscout-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  min-width: 30px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+
+.jobscout-new {
+  margin-left: 5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.28);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  vertical-align: 1px;
+}
+
+.jobscout-badge-scoring {
+  animation: jobscout-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes jobscout-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* ── Design-system animations ──────────────────────────────────────────── */
+
+@keyframes scoutrise {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scoutspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scoutpop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scoutshimmer {
+  to {
+    transform: translateX(480px);
+  }
+}
+
+@keyframes scoutfill {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* ── Shared shell ──────────────────────────────────────────────────────── */
+
+.js-ui {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  color: #1f2328;
+  --accent: #0a66c2;
+}
+
+.js-ui *,
+.js-ui *::before,
+.js-ui *::after {
+  box-sizing: border-box;
+}
+
+/* LinkedIn's CSS resets can strip default focus rings from injected buttons. */
+.js-ui button:focus-visible,
+button.js-ui:focus-visible {
+  outline: 2px solid var(--accent, #0a66c2);
+  outline-offset: 2px;
+}
+
+.js-launcher:hover,
+.js-pill:hover {
+  box-shadow: 0 8px 26px rgba(20, 24, 28, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js-ui *,
+  .jobscout-badge,
+  .jobscout-toast {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ── Idle launcher ─────────────────────────────────────────────────────── */
+
+.js-launcher {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e2ded7;
+  padding: 11px 16px 11px 12px;
+  border-radius: 26px;
+  box-shadow: 0 6px 20px rgba(20, 24, 28, 0.14);
+  cursor: pointer;
+  animation: scoutrise 0.3s ease both;
+}
+
+.js-launcher-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+.js-launcher-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.js-launcher-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2328;
+}
+
+.js-launcher-sub {
+  font-size: 11.5px;
+  color: #6b7280;
+}
+
+/* ── Expanded panel ────────────────────────────────────────────────────── */
+
+.js-panel {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 2147483647;
+  width: 352px;
+  background: #fff;
+  border: 1px solid #e6e2db;
+  border-radius: 16px;
+  box-shadow: 0 16px 44px rgba(20, 24, 28, 0.2);
+  overflow: hidden;
+  animation: scoutrise 0.28s ease both;
+}
+
+.js-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 14px 13px;
+}
+
+.js-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent);
+  flex: none;
+}
+
+.js-header-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.js-header-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1f2328;
+}
+
+.js-header-sub {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.js-min {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #8a929c;
+  cursor: pointer;
+  flex: none;
+}
+
+.js-min:hover {
+  background: #f1f0ec;
+}
+
+.js-progress {
+  height: 4px;
+  background: #eeece7;
+  position: relative;
+  overflow: hidden;
+}
+
+.js-progress-shimmer {
+  position: absolute;
+  top: 0;
+  left: -120px;
+  width: 120px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: scoutshimmer 1.1s linear infinite;
+}
+
+.js-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0;
+  transition: width 0.4s ease;
+}
+
+/* ── Queue list ────────────────────────────────────────────────────────── */
+
+.js-list {
+  padding: 10px 8px 6px;
+}
+
+.js-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 8px 8px;
+}
+
+.js-list-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6b7280; /* WCAG AA at 11px; design's #9aa0a8 was ~2.6:1 */
+}
+
+.js-list-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.js-list-body {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.js-row {
+  position: relative;
+  overflow: hidden;
+  max-height: 56px;
+  opacity: 1;
+  margin-bottom: 2px;
+  transition: max-height 0.3s ease, opacity 0.28s ease, transform 0.28s ease,
+    margin 0.3s ease;
+}
+
+.js-row-leaving {
+  max-height: 0;
+  opacity: 0;
+  transform: translateX(-10px);
+  margin-bottom: 0;
+}
+
+.js-row-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.js-row-active .js-row-inner {
+  background: #f3f7fb;
+}
+
+.js-row-scored .js-row-inner {
+  background: #f7fbf8;
+}
+
+.js-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.js-row-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.js-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2328;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.js-row-company {
+  font-size: 11.5px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.js-queued-label {
+  font-size: 11px;
+  color: #6b7280; /* WCAG AA; design's #b6bcc4 was ~1.9:1 */
+  font-weight: 600;
+  flex: none;
+}
+
+.js-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #e0ddd6;
+  border-top-color: var(--accent);
+  animation: scoutspin 0.7s linear infinite;
+  flex: none;
+}
+
+.js-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+  animation: scoutpop 0.35s ease both;
+}
+
+.js-rowfill {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 2px;
+  height: 2px;
+  background: #eeece7;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.js-rowfill > div {
+  height: 100%;
+  background: var(--accent);
+  animation: scoutfill 0.85s linear forwards;
+}
+
+/* ── Done summary ──────────────────────────────────────────────────────── */
+
+.js-done {
+  padding: 20px 18px 18px;
+  animation: scoutrise 0.3s ease both;
+}
+
+.js-done-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.js-done-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ddf0e4;
+  color: #036a3a;
+  flex: none;
+  animation: scoutpop 0.4s ease both;
+}
+
+.js-done-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2328;
+  line-height: 1.3;
+}
+
+.js-done-sub {
+  font-size: 12.5px;
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+.js-tiles {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.js-tile {
+  flex: 1;
+  background: #f7f6f3;
+  border-radius: 10px;
+  padding: 11px 12px;
+}
+
+.js-tile-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2328;
+  line-height: 1;
+}
+
+.js-tile-cap {
+  font-size: 11.5px;
+  color: #6b7280;
+  margin-top: 3px;
+}
+
+.js-dist {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 11.5px;
+  color: #4b5563;
+  margin-bottom: 16px;
+}
+
+.js-dist > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.js-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.js-dismiss {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+  background: #f1f0ec;
+  border: none;
+  padding: 9px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.js-dismiss:hover {
+  background: #e9e7e2;
+}
+
+/* ── Collapsed pill ────────────────────────────────────────────────────── */
+
+.js-pill {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e2ded7;
+  padding: 8px 16px 8px 8px;
+  border-radius: 26px;
+  box-shadow: 0 6px 20px rgba(20, 24, 28, 0.16);
+  cursor: pointer;
+}
+
+.js-ring-wrap {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.js-ring-wrap svg {
+  transform: rotate(-90deg);
+}
+
+.js-ring-arc {
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.js-ring-center {
+  position: absolute;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1f2328;
+}
+
+.js-ring-check {
+  position: absolute;
+  color: var(--accent);
+  font-size: 15px;
+}
+
+.js-pill-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.js-pill-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2328;
+}
+
+.js-pill-sub {
+  font-size: 11.5px;
+  color: #6b7280;
+}
+
+/* ── Error toast ───────────────────────────────────────────────────────── */
+
+.jobscout-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 396px;
+  z-index: 2147483647;
+  max-width: 320px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e6e2db;
+  border-left: 3px solid #dc2626;
+  color: #1f2328;
+  font-size: 13px;
+  line-height: 1.4;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 8px 24px rgba(20, 24, 28, 0.18);
+  animation: scoutrise 0.25s ease both;
+}
