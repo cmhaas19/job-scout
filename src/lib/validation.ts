@@ -96,3 +96,26 @@ export const archiveSchema = z.object({
 export const emailDigestSchema = z.object({
   emailDigestEnabled: z.boolean(),
 });
+
+// LinkedIn job IDs are 8+ digit numbers; the strict regex doubles as the
+// injection guard for anything built from them (canonical URLs, etc.).
+const linkedInJobId = z.string().regex(/^\d{8,}$/, "invalid LinkedIn job id");
+
+export const extensionLookupSchema = z.object({
+  jobIds: z.array(linkedInJobId).min(1).max(50),
+});
+
+export const extensionEvaluateSchema = z.object({
+  jobs: z
+    .array(
+      z.object({
+        jobId: linkedInJobId,
+        title: z.string().max(300).optional(),
+        company: z.string().max(300).optional(),
+      })
+    )
+    .min(1)
+    // Matches the extension's batch size AND the evaluate route's 120s
+    // maxDuration budget, which is sized for a 3-job worst case.
+    .max(3),
+});
