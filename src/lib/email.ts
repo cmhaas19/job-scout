@@ -197,10 +197,12 @@ function esc(s: string | null | undefined): string {
     .replace(/"/g, "&quot;");
 }
 
+// A job is "Remote" only if it came from a saved search whose Work Type is
+// Remote (remote_filter === "remote"). The job's own location text is NOT used —
+// LinkedIn location strings like "San Mateo, CA" or a stray "remote" mention
+// don't reflect the actual work arrangement, so they mislabel non-remote roles.
 function isRemote(job: DigestJob, remoteBySearchId: Map<string, boolean>): boolean {
-  if (job.location && /remote/i.test(job.location)) return true;
-  if (job.search_id && remoteBySearchId.get(job.search_id)) return true;
-  return false;
+  return !!(job.search_id && remoteBySearchId.get(job.search_id));
 }
 
 // Build a stable name -> palette map from all search names present in the digest.
