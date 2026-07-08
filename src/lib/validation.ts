@@ -115,7 +115,8 @@ export const extensionEvaluateSchema = z.object({
       })
     )
     .min(1)
-    // Matches the extension's batch size AND the evaluate route's 120s
-    // maxDuration budget, which is sized for a 3-job worst case.
-    .max(3),
+    // A full LinkedIn results page. The extension sends the whole page in one
+    // request; the route fetches + evaluates it concurrently (bounded by
+    // fetch_concurrency / eval_concurrency) inside its 120s maxDuration.
+    .max(25),
 });

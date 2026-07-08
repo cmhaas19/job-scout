@@ -50,10 +50,12 @@ describe("extensionEvaluateSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects empty batches and batches larger than 5", () => {
+  it("accepts a full page and rejects empty or oversized batches", () => {
     expect(extensionEvaluateSchema.safeParse({ jobs: [] }).success).toBe(false);
-    const six = Array.from({ length: 6 }, (_, i) => ({ jobId: id(i) }));
-    expect(extensionEvaluateSchema.safeParse({ jobs: six }).success).toBe(
+    const page = Array.from({ length: 25 }, (_, i) => ({ jobId: id(i) }));
+    expect(extensionEvaluateSchema.safeParse({ jobs: page }).success).toBe(true);
+    const overfull = Array.from({ length: 26 }, (_, i) => ({ jobId: id(i) }));
+    expect(extensionEvaluateSchema.safeParse({ jobs: overfull }).success).toBe(
       false
     );
   });

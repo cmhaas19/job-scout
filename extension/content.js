@@ -9,7 +9,10 @@
   const VERSION = chrome.runtime.getManifest().version;
   console.log(`[JobScout] content script v${VERSION} loaded on ${location.pathname}`);
 
-  const BATCH_SIZE = 3; // matches the server's schema cap and its 120s budget
+  // A full LinkedIn results page in one request. The server fetches + evaluates
+  // the whole batch concurrently (bounded by fetch/eval concurrency) within its
+  // 120s budget, so a page scores in ~20-30s instead of many serial round-trips.
+  const BATCH_SIZE = 25; // matches the server's schema cap (extensionEvaluateSchema)
 
   // LinkedIn job IDs are 8+ digit numbers — mirrors linkedInJobId in
   // src/lib/validation.ts, the server-side counterpart.
